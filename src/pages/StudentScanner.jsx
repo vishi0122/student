@@ -11,6 +11,7 @@ const StudentScanner = () => {
   const [scanResult, setScanResult] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
   const scannerRef = useRef(null);
   const html5QrcodeScannerRef = useRef(null);
 
@@ -21,6 +22,8 @@ const StudentScanner = () => {
   // Initialize scanner when camera is ready
   useEffect(() => {
     if (cameraReady && scannerRef.current && !html5QrcodeScannerRef.current) {
+      setCameraError(null);
+      
       const config = {
         fps: 10,
         qrbox: { width: 250, height: 250 },
@@ -28,10 +31,16 @@ const StudentScanner = () => {
         disableFlip: false,
       };
 
-      const scanner = new Html5QrcodeScanner('qr-reader', config, false);
-      
-      scanner.render(onScanSuccess, onScanError);
-      html5QrcodeScannerRef.current = scanner;
+      try {
+        const scanner = new Html5QrcodeScanner('qr-reader', config, false);
+        
+        scanner.render(onScanSuccess, onScanError);
+        html5QrcodeScannerRef.current = scanner;
+      } catch (error) {
+        console.error('Scanner initialization error:', error);
+        setCameraError('Failed to initialize camera. Please check permissions.');
+        setCameraReady(false);
+      }
     }
 
     return () => {
@@ -111,6 +120,7 @@ const StudentScanner = () => {
   const handleStartScanning = () => {
     setScanResult(null);
     setScanning(false);
+    setCameraError(null);
     setCameraReady(true);
   };
 
@@ -121,6 +131,7 @@ const StudentScanner = () => {
     }
     setCameraReady(false);
     setScanning(false);
+    setCameraError(null);
   };
 
   const handleLogout = () => {
@@ -233,9 +244,28 @@ const StudentScanner = () => {
                   Start Camera Scanner
                 </Button>
 
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 mb-4">
                   Click to activate your camera and scan the QR code
                 </p>
+
+                {/* Camera Error Message */}
+                {cameraError && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex gap-2">
+                      <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-red-900">
+                        <p className="font-medium mb-2">{cameraError}</p>
+                        <p className="text-red-800 mb-2">To fix this:</p>
+                        <ol className="list-decimal list-inside space-y-1 text-red-800">
+                          <li>Make sure you're using HTTPS (not HTTP)</li>
+                          <li>Click the camera icon in address bar</li>
+                          <li>Select "Allow" for camera access</li>
+                          <li>Refresh the page and try again</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div>
@@ -342,7 +372,15 @@ const StudentScanner = () => {
                   <li>Wait for automatic detection</li>
                   <li>Attendance marked instantly!</li>
                 </ol>
-                <p className="mt-3 text-xs text-blue-700">
+                <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-xs text-yellow-900 font-medium">
+                    ⚠️ Important: Camera only works on HTTPS (secure connection)
+                  </p>
+                  <p className="text-xs text-yellow-800 mt-1">
+                    If camera doesn't work, make sure URL starts with "https://" not "http://"
+                  </p>
+                </div>
+                <p className="mt-2 text-xs text-blue-700">
                   Note: QR codes refresh every 5 seconds. Scan the latest code displayed by your teacher.
                 </p>
               </div>
