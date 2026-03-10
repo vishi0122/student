@@ -29,6 +29,12 @@ const StudentScanner = () => {
         qrbox: { width: 250, height: 250 },
         aspectRatio: 1.0,
         disableFlip: false,
+        rememberLastUsedCamera: true,
+        showTorchButtonIfSupported: true,
+        // Request camera explicitly
+        videoConstraints: {
+          facingMode: "environment" // Use back camera on mobile
+        }
       };
 
       try {
@@ -38,7 +44,7 @@ const StudentScanner = () => {
         html5QrcodeScannerRef.current = scanner;
       } catch (error) {
         console.error('Scanner initialization error:', error);
-        setCameraError('Failed to initialize camera. Please check permissions.');
+        setCameraError('Failed to initialize camera. Please check permissions and ensure you are using HTTPS.');
         setCameraReady(false);
       }
     }
