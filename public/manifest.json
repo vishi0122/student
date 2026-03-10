@@ -1,0 +1,26 @@
+{
+  "name": "AttendAI Scanner",
+  "short_name": "AttendAI",
+  "description": "Scan QR codes to mark attendance at Chandigarh University",
+  "start_url": "/scan",
+  "display": "standalone",
+  "background_color": "#1E3A8A",
+  "theme_color": "#1E3A8A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "permissions": ["camera"]
+}
