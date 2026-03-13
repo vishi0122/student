@@ -34,11 +34,16 @@ const StudentScanner = () => {
         // Request camera explicitly
         videoConstraints: {
           facingMode: "environment" // Use back camera on mobile
+        },
+        // Ensure video is displayed
+        formatsToSupport: [ 0 ], // QR_CODE
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: false
         }
       };
 
       try {
-        const scanner = new Html5QrcodeScanner('qr-reader', config, false);
+        const scanner = new Html5QrcodeScanner('qr-reader', config, /* verbose= */ false);
         
         scanner.render(onScanSuccess, onScanError);
         html5QrcodeScannerRef.current = scanner;
@@ -280,6 +285,10 @@ const StudentScanner = () => {
                     id="qr-reader" 
                     ref={scannerRef}
                     className="rounded-lg overflow-hidden"
+                    style={{ 
+                      width: '100%',
+                      minHeight: '300px'
+                    }}
                   ></div>
                 </div>
 
