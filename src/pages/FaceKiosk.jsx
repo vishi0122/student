@@ -185,12 +185,15 @@ const FaceKiosk = () => {
 
         markedRef.current.add(bestMatch.uid);
         const s = sessionRef.current;
-        await attendanceStore.markAttendance(s.id || s.sessionId, {
+        const result = await attendanceStore.markAttendance(s.id || s.sessionId, {
           studentId: bestMatch.docId,
           studentName: bestMatch.name,
           studentUID: bestMatch.uid,
           section: bestMatch.section,
+          method: 'face',
         });
+
+        if (!result.success) return; // duplicate or error — skip UI update
 
         setPresentCount(markedRef.current.size);
         const entry = {

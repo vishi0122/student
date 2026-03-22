@@ -1,5 +1,5 @@
 // Firestore-backed attendance store
-// Replaces the in-memory store so all devices share the same real-time data
+// Uses transactions for atomic duplicate prevention — no race conditions possible
 
 import {
   doc,
@@ -9,84 +9,105 @@ import {
   collection,
   addDoc,
   onSnapshot,
+  runTransaction,
   serverTimestamp,
   arrayUnion,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
 class AttendanceStore {
-  // Create a new session in Firestore
   async createSession(sessionData) {
     const sessionRef = doc(db, 'sessions', sessionData.sessionId);
     await setDoc(sessionRef, {
       ...sessionData,
       attendees: [],
+      attendeeUIDs: [],          // parallel array of UIDs for fast dedup lookup
       createdAt: serverTimestamp(),
       status: 'active',
     });
     return sessionData;
   }
 
-  // Get session by ID
   async getSession(sessionId) {
     const snap = await getDoc(doc(db, 'sessions', sessionId));
     return snap.exists() ? snap.data() : null;
   }
 
-  // Mark attendance — works from any device
+  // Atomic mark attendance — transaction guarantees no duplicates even under concurrent writes
   async markAttendance(sessionId, studentData, sessionMeta = null) {
     const sessionRef = doc(db, 'sessions', sessionId);
-    const snap = await getDoc(sessionRef);
 
-    // Auto-create session from QR metadata if it doesn't exist yet
-    if (!snap.exists()) {
-      if (!sessionMeta) {
-        return { success: false, error: 'Session not found' };
-      }
-      await setDoc(sessionRef, {
-        sessionId,
-        subject: sessionMeta.subject || 'Unknown',
-        section: sessionMeta.section || 'Unknown',
-        teacher: sessionMeta.teacher || 'Unknown',
-        date: sessionMeta.date || new Date().toISOString().split('T')[0],
-        time: sessionMeta.time || '',
-        room: sessionMeta.room || 'N/A',
-        attendees: [],
-        createdAt: serverTimestamp(),
-        status: 'active',
-      });
-    } else {
-      // Check for duplicate attendance
-      const sessionData = snap.data();
-      const already = (sessionData.attendees || []).find(
-        (a) => a.studentUID === studentData.studentUID
-      );
-      if (already) {
-        return { success: false, error: 'Attendance already marked for this session' };
-      }
-    }
+    // Dedicated dedup doc — one doc per (session, student), set with merge:false
+    // If it already exists the transaction will abort
+    const dedupRef = doc(db, 'sessions', sessionId, 'attendanceRecords', `uid_${studentData.studentUID}`);
 
     const record = {
-      id: `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `ATT-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       sessionId,
       studentId: studentData.studentId,
       studentName: studentData.studentName,
       studentUID: studentData.studentUID,
       section: studentData.section,
       timestamp: new Date().toISOString(),
-      method: 'QR',
+      method: studentData.method || 'face',
       status: 'present',
     };
 
-    // Push record into the attendees array on the session doc
-    await updateDoc(sessionRef, {
-      attendees: arrayUnion(record),
-    });
+    try {
+      await runTransaction(db, async (tx) => {
+        const sessionSnap = await tx.get(sessionRef);
+        const dedupSnap = await tx.get(dedupRef);
 
-    // Also write to a sub-collection for easier querying
-    await addDoc(collection(db, 'sessions', sessionId, 'attendanceRecords'), record);
+        // ── Hard dedup: dedicated doc already exists ──────────────────────
+        if (dedupSnap.exists()) {
+          throw new Error('DUPLICATE');
+        }
 
-    return { success: true, data: record };
+        if (!sessionSnap.exists()) {
+          // Auto-create session from QR metadata
+          if (!sessionMeta) throw new Error('SESSION_NOT_FOUND');
+          tx.set(sessionRef, {
+            sessionId,
+            subject: sessionMeta.subject || 'Unknown',
+            section: sessionMeta.section || 'Unknown',
+            teacher: sessionMeta.teacher || 'Unknown',
+            date: sessionMeta.date || new Date().toISOString().split('T')[0],
+            time: sessionMeta.time || '',
+            room: sessionMeta.room || 'N/A',
+            attendees: [record],
+            attendeeUIDs: [studentData.studentUID],
+            createdAt: serverTimestamp(),
+            status: 'active',
+          });
+        } else {
+          // ── Soft dedup: check attendeeUIDs array inside transaction ──────
+          const data = sessionSnap.data();
+          if ((data.attendeeUIDs || []).includes(studentData.studentUID)) {
+            throw new Error('DUPLICATE');
+          }
+          tx.update(sessionRef, {
+            attendees: arrayUnion(record),
+            attendeeUIDs: arrayUnion(studentData.studentUID),
+          });
+        }
+
+        // Write dedup sentinel doc — this is the atomic lock
+        tx.set(dedupRef, {
+          ...record,
+          markedAt: serverTimestamp(),
+        });
+      });
+
+      return { success: true, data: record };
+    } catch (err) {
+      if (err.message === 'DUPLICATE') {
+        return { success: false, error: 'Attendance already marked for this session', duplicate: true };
+      }
+      if (err.message === 'SESSION_NOT_FOUND') {
+        return { success: false, error: 'Session not found' };
+      }
+      throw err;
+    }
   }
 
   // Real-time listener — fires on every new scan from any device
@@ -96,62 +117,43 @@ class AttendanceStore {
     let initialized = false;
 
     const unsubscribe = onSnapshot(sessionRef, (snap) => {
-      if (!snap.exists()) {
-        console.log('[AttendanceStore] Session doc does not exist yet:', sessionId);
-        return;
-      }
-
-      const data = snap.data();
-      const attendees = data.attendees || [];
-
-      console.log('[AttendanceStore] Snapshot received, attendees count:', attendees.length);
+      if (!snap.exists()) return;
+      const attendees = snap.data().attendees || [];
 
       if (!initialized) {
-        // First snapshot — seed known IDs so we don't fire for existing records
         attendees.forEach((a) => knownIds.add(a.id));
         initialized = true;
-        console.log('[AttendanceStore] Initialized with', knownIds.size, 'existing records');
         return;
       }
 
-      // Fire callback only for genuinely new records
       attendees.forEach((record) => {
         if (!knownIds.has(record.id)) {
           knownIds.add(record.id);
-          console.log('[AttendanceStore] New attendance record:', record.studentUID);
           callback(record);
         }
       });
-    }, (error) => {
-      console.error('[AttendanceStore] onSnapshot error:', error);
-    });
+    }, console.error);
 
     return unsubscribe;
   }
 
-  // Get session stats
   async getSessionStats(sessionId) {
     const snap = await getDoc(doc(db, 'sessions', sessionId));
-    if (!snap.exists()) {
-      return { totalStudents: 45, present: 0, absent: 45, percentage: 0 };
-    }
+    if (!snap.exists()) return { totalStudents: 35, present: 0, absent: 35, percentage: 0 };
     const present = (snap.data().attendees || []).length;
-    const totalStudents = 35;
     return {
-      totalStudents,
+      totalStudents: 35,
       present,
-      absent: totalStudents - present,
-      percentage: Math.round((present / totalStudents) * 100),
+      absent: 35 - present,
+      percentage: Math.round((present / 35) * 100),
     };
   }
 
-  // Get attendees list
   async getSessionAttendees(sessionId) {
     const snap = await getDoc(doc(db, 'sessions', sessionId));
     return snap.exists() ? snap.data().attendees || [] : [];
   }
 
-  // End session
   async endSession(sessionId) {
     const sessionRef = doc(db, 'sessions', sessionId);
     await updateDoc(sessionRef, { status: 'completed', endTime: serverTimestamp() });

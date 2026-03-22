@@ -7,7 +7,8 @@ import { Html5Qrcode } from 'html5-qrcode';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { validateQRData, markAttendance } from '../services/qrService';
+import { validateQRData } from '../services/qrService';
+import attendanceStore from '../services/attendanceStore';
 import { getStudentByUID } from '../services/dataService';
 import { loadModels, getFaceDescriptor, captureMultipleDescriptors, saveFaceDescriptors, loadFaceDescriptors, compareFacesMulti } from '../services/faceService';
 
@@ -251,8 +252,18 @@ const StudentScanner = () => {
     try {
       const validation = validateQRData(decodedText);
       if (validation.valid) {
-        const attendance = await markAttendance(validation.data.sessionId, studentInfo, validation.data);
-        setScanResult({ success: true, message: 'Attendance marked!', data: validation.data, attendance });
+        const result = await attendanceStore.markAttendance(
+          validation.data.sessionId,
+          { ...studentInfo, method: 'QR' },
+          validation.data
+        );
+        if (result.duplicate) {
+          setScanResult({ success: false, message: 'You already marked attendance for this session.', duplicate: true });
+        } else if (result.success) {
+          setScanResult({ success: true, message: 'Attendance marked!', data: validation.data });
+        } else {
+          setScanResult({ success: false, message: result.error });
+        }
       } else {
         setScanResult({ success: false, message: validation.error });
       }
@@ -535,16 +546,16 @@ const StudentScanner = () => {
 
         {/* Result */}
         {scanResult && (
-          <Card className={`p-6 ${scanResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <Card className={`p-6 ${scanResult.success ? 'bg-green-50 border-green-200' : scanResult.duplicate ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}`}>
             <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${scanResult.success ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                {scanResult.success ? <CheckCircle size={24} /> : <XCircle size={24} />}
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${scanResult.success ? 'bg-green-100 text-green-600' : scanResult.duplicate ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-600'}`}>
+                {scanResult.success ? <CheckCircle size={24} /> : scanResult.duplicate ? <CheckCircle2 size={24} /> : <XCircle size={24} />}
               </div>
               <div className="flex-1">
-                <h3 className={`font-bold mb-2 ${scanResult.success ? 'text-green-900' : 'text-red-900'}`}>
-                  {scanResult.success ? 'Attendance Marked!' : 'Scan Failed'}
+                <h3 className={`font-bold mb-2 ${scanResult.success ? 'text-green-900' : scanResult.duplicate ? 'text-amber-900' : 'text-red-900'}`}>
+                  {scanResult.success ? 'Attendance Marked!' : scanResult.duplicate ? 'Already Marked' : 'Scan Failed'}
                 </h3>
-                <p className={`text-sm mb-4 ${scanResult.success ? 'text-green-800' : 'text-red-800'}`}>{scanResult.message}</p>
+                <p className={`text-sm mb-4 ${scanResult.success ? 'text-green-800' : scanResult.duplicate ? 'text-amber-800' : 'text-red-800'}`}>{scanResult.message}</p>
                 {scanResult.success && scanResult.data && (
                   <div className="space-y-2 text-sm mb-4">
                     {[['Subject', scanResult.data.subject], ['Teacher', scanResult.data.teacher], ['Room', scanResult.data.room], ['Time', scanResult.data.time]].map(([label, val]) => (
@@ -555,7 +566,7 @@ const StudentScanner = () => {
                     ))}
                   </div>
                 )}
-                <Button onClick={() => { setScanResult(null); handleStartScanning(); }} variant={scanResult.success ? 'outline' : 'primary'} className="w-full">
+                <Button onClick={() => { setScanResult(null); handleStartScanning(); }} variant="outline" className="w-full">
                   {scanResult.success ? 'Scan Another' : 'Try Again'}
                 </Button>
               </div>
