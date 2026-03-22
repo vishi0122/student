@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { loadModels, getFaceDescriptor, compareFaces } from '../services/faceService';
 import attendanceStore from '../services/attendanceStore';
+import { createAttendanceSession } from '../services/qrService';
+import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import { ScanFace, Users, CheckCircle2, Loader, AlertCircle, WifiOff } from 'lucide-react';
+import { ScanFace, Users, CheckCircle2, Loader, AlertCircle, WifiOff, Play } from 'lucide-react';
 
 // How long to show the welcome card before resetting (ms)
 const WELCOME_DURATION = 3000;
@@ -24,11 +26,15 @@ const FaceKiosk = () => {
   const [status, setStatus] = useState('init'); // init | loading | ready | error | no-session
   const [statusMsg, setStatusMsg] = useState('');
   const [session, setSession] = useState(null);
-  const [students, setStudents] = useState([]); // [{ uid, name, section, docId, descriptor }]
+  const [students, setStudents] = useState([]);
   const [presentCount, setPresentCount] = useState(0);
   const [recentScans, setRecentScans] = useState([]);
-  const [welcome, setWelcome] = useState(null); // { name, uid } | null
+  const [welcome, setWelcome] = useState(null);
   const [scanning, setScanning] = useState(false);
+  // For creating a session inline
+  const [newSubject, setNewSubject] = useState('');
+  const [creating, setCreating] = useState(false);
+  const { user } = useAuth();
 
   // ── Boot sequence ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -86,19 +92,66 @@ const FaceKiosk = () => {
     };
   }, []);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Create session inline ──────────────────────────────────────────────────
+  const handleCreateSession = async () => {
+    if (!newSubject.trim()) return;
+    setCreating(true);
+    try {
+      const s = await createAttendanceSession({
+        subject: newSubject.trim(),
+        section: '605A',
+        teacher: user?.name || user?.email || 'Faculty',
+        room: 'N/A',
+      });
+      setSession(s);
+      setStatus('loading');
+      setStatusMsg('Loading student face data...');
+      const loaded = await loadStudentDescriptors();
+      const withFace = loaded.filter(st => st.descriptor);
+      setStudents(withFace);
+      if (withFace.length === 0) {
+        setStatus('error');
+        setStatusMsg('No students have registered their face yet.');
+        return;
+      }
+      setStatusMsg('Starting camera...');
+      const ok = await startCamera();
+      if (!ok) return;
+      setStatus('ready');
+      setStatusMsg('');
+      startDetection(withFace, s);
+    } catch (e) {
+      console.error(e);
+      setStatus('no-session');
+      setStatusMsg('Failed to create session. Try again.');
+    }
+    setCreating(false);
+  };
   const getActiveSession = async () => {
     try {
-      const q = query(
-        collection(db, 'sessions'),
-        where('status', '==', 'active'),
-        orderBy('createdAt', 'desc'),
-        limit(1)
-      );
+      // Try status=active first (no orderBy to avoid index requirement)
+      const q = query(collection(db, 'sessions'), where('status', '==', 'active'));
       const snap = await getDocs(q);
-      if (snap.empty) return null;
-      return { id: snap.docs[0].id, ...snap.docs[0].data() };
-    } catch {
+      if (!snap.empty) {
+        // Pick the most recently created one
+        const sorted = snap.docs.sort((a, b) => {
+          const aTime = a.data().createdAt?.seconds || 0;
+          const bTime = b.data().createdAt?.seconds || 0;
+          return bTime - aTime;
+        });
+        return { id: sorted[0].id, ...sorted[0].data() };
+      }
+      // Fallback: grab the most recent session regardless of status
+      const allSnap = await getDocs(collection(db, 'sessions'));
+      if (allSnap.empty) return null;
+      const sorted = allSnap.docs.sort((a, b) => {
+        const aTime = a.data().createdAt?.seconds || 0;
+        const bTime = b.data().createdAt?.seconds || 0;
+        return bTime - aTime;
+      });
+      return { id: sorted[0].id, ...sorted[0].data() };
+    } catch (e) {
+      console.error('getActiveSession error:', e);
       return null;
     }
   };
@@ -232,12 +285,27 @@ const FaceKiosk = () => {
             {status === 'no-session' && <WifiOff size={40} className="text-amber-500 mb-4" />}
             <p className="text-gray-700 font-medium max-w-sm">{statusMsg}</p>
             {status === 'no-session' && (
-              <button
-                onClick={() => navigate('/attendance')}
-                className="mt-4 px-4 py-2 bg-[#1E3A8A] text-white rounded-lg text-sm"
-              >
-                Go Start a Session
-              </button>
+              <div className="mt-6 w-full max-w-sm">
+                <p className="text-sm text-gray-500 mb-2 text-center">Or start a new session here:</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newSubject}
+                    onChange={e => setNewSubject(e.target.value)}
+                    placeholder="Subject name (e.g. DBMS)"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+                    onKeyDown={e => e.key === 'Enter' && handleCreateSession()}
+                  />
+                  <button
+                    onClick={handleCreateSession}
+                    disabled={creating || !newSubject.trim()}
+                    className="px-4 py-2 bg-[#1E3A8A] text-white rounded-lg text-sm disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {creating ? <Loader size={14} className="animate-spin" /> : <Play size={14} />}
+                    Start
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}
