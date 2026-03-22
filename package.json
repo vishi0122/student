@@ -10,6 +10,7 @@
     "lint": "eslint src --ext js,jsx"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
     "face-api.js": "^0.22.2",
     "firebase": "^12.11.0",
     "html5-qrcode": "^2.3.8",
