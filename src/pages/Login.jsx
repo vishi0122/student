@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BrainCircuit, AlertCircle } from 'lucide-react';
+import { BrainCircuit, AlertCircle, Database } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
+import { seedAll } from '../services/seedFirestore';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,7 +14,18 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Quick login presets for testing
+  const [seedStatus, setSeedStatus] = useState('');
+
+  const handleSeed = async () => {
+    setSeedStatus('seeding');
+    try {
+      await seedAll();
+      setSeedStatus('done');
+    } catch (e) {
+      setSeedStatus('error');
+      console.error(e);
+    }
+  };
   const quickLogins = [
     { label: 'College Faculty (Juned)', email: 'juned@cumail.in', password: 'Juned@FS2024' },
     { label: 'College Admin', email: 'admin.college@cumail.in', password: 'CU@Admin2024' },
@@ -194,6 +206,22 @@ const Login = () => {
               LOGIN_TESTING_GUIDE.md
             </a>
           </p>
+        </div>
+
+        {/* One-time DB Seed */}
+        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+          <p className="text-xs text-yellow-800 mb-2 font-medium">First time setup — seed the database once</p>
+          <button
+            onClick={handleSeed}
+            disabled={seedStatus === 'seeding' || seedStatus === 'done'}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Database size={16} />
+            {seedStatus === 'seeding' ? 'Seeding...' : seedStatus === 'done' ? '✅ Done! Reload the page' : seedStatus === 'error' ? '❌ Error — check console' : 'Seed Firestore Database'}
+          </button>
+          {seedStatus === 'done' && (
+            <p className="text-xs text-green-700 mt-2">All data uploaded. You can remove this button now.</p>
+          )}
         </div>
       </div>
     </div>
