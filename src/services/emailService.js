@@ -34,8 +34,14 @@ export const sendAbsenceNotification = async ({ studentName, toEmail, subject, d
     section,
   };
 
-  const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, params, PUBLIC_KEY);
-  return response;
+  console.log('EmailJS sending with:', { SERVICE_ID, TEMPLATE_ID, PUBLIC_KEY: PUBLIC_KEY?.slice(0,6)+'...', params });
+  try {
+    const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, params, PUBLIC_KEY);
+    return response;
+  } catch (err) {
+    console.error('EmailJS raw error:', err?.text || err?.message || err);
+    throw new Error(err?.text || err?.message || 'EmailJS 422 error');
+  }
 };
 
 // Send to multiple absent students — returns results array
