@@ -31,6 +31,7 @@ const FaceKiosk = () => {
   const [presentCount, setPresentCount] = useState(0);
   const [recentScans, setRecentScans] = useState([]);
   const [welcome, setWelcome] = useState(null);
+  const [scanState, setScanState] = useState('idle'); // idle | scanning | unknown | already-marked
   const [newSubject, setNewSubject] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -153,13 +154,19 @@ const FaceKiosk = () => {
   };
 
   const startDetection = () => {
-    // Track consecutive matches per UID to reduce false positives
     const consecutiveHits = {};
+    let unknownTimer = null;
 
     intervalRef.current = setInterval(async () => {
       if (!videoRef.current || !videoRef.current.srcObject) return;
+
+      setScanState('scanning');
       const descriptor = await getFaceDescriptor(videoRef.current);
-      if (!descriptor) return;
+
+      if (!descriptor) {
+        setScanState('idle');
+        return;
+      }
 
       let bestMatch = null;
       let bestDist = Infinity;
@@ -170,16 +177,23 @@ const FaceKiosk = () => {
       }
 
       if (bestMatch && bestDist < THRESHOLD) {
-        if (markedRef.current.has(bestMatch.uid)) return;
+        clearTimeout(unknownTimer);
 
-        // Require 2 consecutive matches before marking
+        if (markedRef.current.has(bestMatch.uid)) {
+          setScanState('already-marked');
+          unknownTimer = setTimeout(() => setScanState('idle'), 2000);
+          return;
+        }
+
         consecutiveHits[bestMatch.uid] = (consecutiveHits[bestMatch.uid] || 0) + 1;
-        // Reset all others
         for (const uid of Object.keys(consecutiveHits)) {
           if (uid !== bestMatch.uid) consecutiveHits[uid] = 0;
         }
 
-        if (consecutiveHits[bestMatch.uid] < 2) return; // wait for next tick
+        if (consecutiveHits[bestMatch.uid] < 2) {
+          setScanState('scanning');
+          return;
+        }
 
         markedRef.current.add(bestMatch.uid);
         const s = sessionRef.current;
@@ -191,20 +205,28 @@ const FaceKiosk = () => {
           method: 'face',
         });
 
-        if (!result.success) return; // duplicate or error — skip UI update
+        if (!result.success) {
+          setScanState('already-marked');
+          unknownTimer = setTimeout(() => setScanState('idle'), 2000);
+          return;
+        }
 
+        setScanState('idle');
         setPresentCount(markedRef.current.size);
-        const entry = {
+        setRecentScans(prev => [{
           uid: bestMatch.uid,
           name: bestMatch.name,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-        setRecentScans(prev => [entry, ...prev]);
+        }, ...prev]);
         setWelcome({ name: bestMatch.name, uid: bestMatch.uid });
         setTimeout(() => setWelcome(null), WELCOME_DURATION);
-      } else if (bestMatch) {
-        // No match this tick — reset consecutive counter
-        consecutiveHits[bestMatch.uid] = 0;
+
+      } else {
+        // Face detected but no match — show "not recognized"
+        for (const uid of Object.keys(consecutiveHits)) consecutiveHits[uid] = 0;
+        setScanState('unknown');
+        clearTimeout(unknownTimer);
+        unknownTimer = setTimeout(() => setScanState('idle'), 2000);
       }
     }, SCAN_INTERVAL);
   };
@@ -300,7 +322,7 @@ const FaceKiosk = () => {
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="w-56 h-72 border-4 border-white/50 rounded-full" />
                 </div>
-                {/* Welcome overlay */}
+                {/* Welcome overlay — matched */}
                 {welcome && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/65 backdrop-blur-sm">
                     <div className="text-center text-white px-6">
@@ -312,11 +334,41 @@ const FaceKiosk = () => {
                     </div>
                   </div>
                 )}
+                {/* Not recognized overlay */}
+                {!welcome && scanState === 'unknown' && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-red-900/50 backdrop-blur-sm">
+                    <div className="text-center text-white px-6">
+                      <div className="w-16 h-16 rounded-full bg-red-500/80 flex items-center justify-center mx-auto mb-3">
+                        <AlertCircle size={36} className="text-white" />
+                      </div>
+                      <p className="text-2xl font-bold mb-1">Not Recognized</p>
+                      <p className="text-sm text-red-200">Register your face at /scan first</p>
+                    </div>
+                  </div>
+                )}
+                {/* Already marked overlay */}
+                {!welcome && scanState === 'already-marked' && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-amber-900/50 backdrop-blur-sm">
+                    <div className="text-center text-white px-6">
+                      <CheckCircle2 size={56} className="text-amber-300 mx-auto mb-3" />
+                      <p className="text-2xl font-bold mb-1">Already Marked</p>
+                      <p className="text-sm text-amber-200">Attendance already recorded for this session</p>
+                    </div>
+                  </div>
+                )}
+                {/* Oval guide — always visible when no overlay */}
+                {!welcome && scanState !== 'unknown' && scanState !== 'already-marked' && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className={`w-56 h-72 border-4 rounded-full transition-colors duration-300 ${
+                      scanState === 'scanning' ? 'border-blue-400/70' : 'border-white/50'
+                    }`} />
+                  </div>
+                )}
                 {/* Scanning pill */}
-                {!welcome && (
+                {!welcome && scanState !== 'unknown' && scanState !== 'already-marked' && (
                   <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/50 text-white text-xs px-3 py-1.5 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Scanning for faces...
+                    <span className={`w-1.5 h-1.5 rounded-full ${scanState === 'scanning' ? 'bg-blue-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`} />
+                    {scanState === 'scanning' ? 'Identifying...' : 'Scanning for faces...'}
                   </div>
                 )}
               </div>
