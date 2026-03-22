@@ -16,7 +16,7 @@ const Attendance = () => {
   const [sessionType, setSessionType] = useState('lecture');
   const [subjects, setSubjects] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedSection, setSelectedSection] = useState('601A');
+  const [selectedSection, setSelectedSection] = useState('605A');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ const Attendance = () => {
     load();
   }, [user]);
 
-  const sections = user?.sections || ['601A', '601B', '602'];
+  const sections = user?.sections || ['605A'];
 
   const handleStartSession = () => {
     navigate('/live-session', { state: { mode, sessionType, subject: selectedSubject, section: selectedSection } });

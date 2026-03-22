@@ -136,7 +136,7 @@ class AttendanceStore {
       return { totalStudents: 45, present: 0, absent: 45, percentage: 0 };
     }
     const present = (snap.data().attendees || []).length;
-    const totalStudents = 45;
+    const totalStudents = 35;
     return {
       totalStudents,
       present,

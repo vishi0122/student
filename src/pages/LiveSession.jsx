@@ -35,12 +35,11 @@ const LiveSession = () => {
     let unsubscribe = () => {};
 
     const initSession = async () => {
-      const lecture = detectCurrentLecture('601A');
+      const lecture = detectCurrentLecture('605A');
       setCurrentLecture(lecture);
 
-      // Use subject/section passed from Attendance page, fall back to auto-detected lecture
       const subject = location.state?.subject || lecture?.subject || 'General Session';
-      const section = location.state?.section || lecture?.section || '601A';
+      const section = location.state?.section || lecture?.section || '605A';
       const room = lecture?.room || '208';
 
       const newSession = await createAttendanceSession({
@@ -138,7 +137,7 @@ const LiveSession = () => {
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-3xl font-bold text-[#10B981] leading-none">
-                {scannedCount}<span className="text-lg text-gray-400">/45</span>
+                {scannedCount}<span className="text-lg text-gray-400">/35</span>
               </p>
               <p className="text-xs text-gray-500 uppercase tracking-wide">Present</p>
             </div>

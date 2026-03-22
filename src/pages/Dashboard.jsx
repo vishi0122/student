@@ -38,11 +38,11 @@ const Dashboard = () => {
         ]);
 
         const totalAttendees = sessions.reduce((sum, s) => sum + (s.attendees?.length || 0), 0);
-        const totalExpected = sessions.length * 45;
+        const totalExpected = sessions.length * 35;
         const avgAttendance = totalExpected > 0 ? Math.round((totalAttendees / totalExpected) * 100) : 0;
         const activeSessions = sessions.filter(s => s.status === 'active').length;
         const lowAttendance = sessions.filter(s => {
-          const pct = s.attendees?.length ? Math.round((s.attendees.length / 45) * 100) : 0;
+          const pct = s.attendees?.length ? Math.round((s.attendees.length / 35) * 100) : 0;
           return pct < 75;
         }).length;
 

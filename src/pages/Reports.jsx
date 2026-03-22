@@ -25,10 +25,10 @@ const Reports = () => {
 
       // Compute stats from real data
       const totalAttendees = data.reduce((sum, s) => sum + (s.attendees?.length || 0), 0);
-      const totalExpected = data.length * 45;
+      const totalExpected = data.length * 35;
       const avg = totalExpected > 0 ? Math.round((totalAttendees / totalExpected) * 100) : 0;
       const low = data.filter(s => {
-        const pct = s.attendees?.length ? Math.round((s.attendees.length / 45) * 100) : 0;
+        const pct = s.attendees?.length ? Math.round((s.attendees.length / 35) * 100) : 0;
         return pct < 75;
       }).length;
 
@@ -97,7 +97,7 @@ const Reports = () => {
                   <div className="p-8 text-center text-gray-400">No sessions recorded yet. Start a live session to see data here.</div>
                 ) : sessions.map((session, i) => {
                   const present = session.attendees?.length || 0;
-                  const pct = Math.round((present / 45) * 100);
+                  const pct = Math.round((present / 35) * 100);
                   return (
                     <div key={i} onClick={() => navigate(`/session/${session.sessionId || session.id}`)}
                       className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer group">
@@ -112,7 +112,7 @@ const Reports = () => {
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <p className="text-sm font-bold text-gray-900">{present}/45</p>
+                          <p className="text-sm font-bold text-gray-900">{present}/35</p>
                           <p className={`text-xs font-medium ${pct >= 75 ? 'text-emerald-600' : 'text-amber-600'}`}>{pct}%</p>
                         </div>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${

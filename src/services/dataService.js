@@ -125,7 +125,7 @@ export const subscribeToStats = (callback) => {
   return onSnapshot(collection(db, 'sessions'), (snap) => {
     const sessions = snap.docs.map(d => d.data());
     const totalAttendees = sessions.reduce((sum, s) => sum + (s.attendees?.length || 0), 0);
-    const totalExpected = sessions.length * 45;
+    const totalExpected = sessions.length * 35;
     const avgAttendance = totalExpected > 0
       ? Math.round((totalAttendees / totalExpected) * 100)
       : 0;

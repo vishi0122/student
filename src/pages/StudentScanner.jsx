@@ -192,9 +192,9 @@ const StudentScanner = () => {
               <div className="text-sm text-blue-900">
                 <p className="font-medium mb-1">Quick Test UIDs:</p>
                 <ul className="text-blue-800 space-y-1">
-                  <li>• 24BCS10001 (Aarav Sharma)</li>
-                  <li>• 24BCS10002 (Diya Patel)</li>
-                  <li>• 24BCS10003 (Rohan Gupta)</li>
+                  <li>• 24BCS10047 (Rohit Raj)</li>
+                  <li>• 24BCS10096 (Diya Sharma)</li>
+                  <li>• 24BCS12794 (Aarav Sharma)</li>
                 </ul>
               </div>
             </div>
