@@ -1,71 +1,196 @@
 import { useState, useEffect, useRef } from 'react';
-import { QrCode, CheckCircle, XCircle, Camera, AlertCircle, User, StopCircle, Loader, CheckCircle2 } from 'lucide-react';
+import {
+  QrCode, CheckCircle, XCircle, Camera, AlertCircle, User,
+  StopCircle, Loader, CheckCircle2, ScanFace, ShieldCheck
+} from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { validateQRData, markAttendance } from '../services/qrService';
 import { getStudentByUID } from '../services/dataService';
+import { loadModels, getFaceDescriptor, saveFaceDescriptor, loadFaceDescriptor, compareFaces } from '../services/faceService';
 
+// Steps: 'uid' → 'face-register' | 'face-verify' → 'scan'
 const StudentScanner = () => {
-  const [studentInfo, setStudentInfo] = useState(null);
+  const [step, setStep] = useState('uid');
+  const [studentInfo, setStudentInfo] = useState(null);   // { studentId, studentName, studentUID, section, docId }
   const [scanResult, setScanResult] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [cameraError, setCameraError] = useState(null);
-  const [studentUID, setStudentUID] = useState('');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // UID lookup state
-  const [lookupResult, setLookupResult] = useState(null); // { found: bool, student: obj|null }
+  // UID lookup
+  const [studentUID, setStudentUID] = useState('');
+  const [lookupResult, setLookupResult] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const lookupTimer = useRef(null);
 
+  // Face
+  const [modelsReady, setModelsReady] = useState(false);
+  const [faceStatus, setFaceStatus] = useState('idle'); // idle | loading | capturing | success | fail
+  const [faceMessage, setFaceMessage] = useState('');
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const faceIntervalRef = useRef(null);
+
+  // QR scanner
   const html5QrcodeRef = useRef(null);
   const scannerDivId = 'qr-reader';
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => { stopScanner(); };
+    loadModels().then(() => setModelsReady(true)).catch(console.error);
+    return () => { stopScanner(); stopFaceCamera(); };
   }, []);
 
-  // Live UID lookup as user types (debounced 600ms)
+  // Live UID lookup debounced
   useEffect(() => {
     const uid = studentUID.trim().toUpperCase();
     setLookupResult(null);
-
-    if (uid.length < 6) return; // don't query until something meaningful is typed
-
+    if (uid.length < 6) return;
     clearTimeout(lookupTimer.current);
     setLookupLoading(true);
-
     lookupTimer.current = setTimeout(async () => {
       try {
-        console.log('[Scanner] Looking up UID:', uid);
         const student = await getStudentByUID(uid);
-        console.log('[Scanner] Lookup result:', student);
         setLookupResult({ found: !!student, student: student || null });
       } catch (err) {
-        console.error('[Scanner] Lookup error:', err?.code, err?.message);
         setLookupResult({ found: false, student: null, error: err?.code });
       }
       setLookupLoading(false);
     }, 600);
-
     return () => clearTimeout(lookupTimer.current);
   }, [studentUID]);
 
+  // ── Face camera helpers ──────────────────────────────────────────────────
+  const startFaceCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+    } catch {
+      setCameraError('Camera permission denied.');
+    }
+  };
+
+  const stopFaceCamera = () => {
+    clearInterval(faceIntervalRef.current);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+  };
+
+  // ── Face Registration ────────────────────────────────────────────────────
+  const handleStartRegister = async () => {
+    setStep('face-register');
+    setFaceStatus('loading');
+    setFaceMessage('Starting camera...');
+    await startFaceCamera();
+    setFaceStatus('capturing');
+    setFaceMessage('Look straight at the camera. Hold still...');
+  };
+
+  const handleCaptureFace = async () => {
+    if (!videoRef.current || faceStatus === 'loading') return;
+    setFaceStatus('loading');
+    setFaceMessage('Detecting face...');
+    try {
+      const descriptor = await getFaceDescriptor(videoRef.current);
+      if (!descriptor) {
+        setFaceStatus('fail');
+        setFaceMessage('No face detected. Make sure your face is well-lit and centered.');
+        return;
+      }
+      setFaceMessage('Saving face data...');
+      await saveFaceDescriptor(studentInfo.docId, descriptor);
+      stopFaceCamera();
+      setFaceStatus('success');
+      setFaceMessage('Face registered! You can now scan QR codes.');
+      setTimeout(() => setStep('scan'), 1500);
+    } catch (err) {
+      setFaceStatus('fail');
+      setFaceMessage('Failed to save face. Try again.');
+      console.error(err);
+    }
+  };
+
+  // ── Face Verification ────────────────────────────────────────────────────
+  const handleStartVerify = async () => {
+    setStep('face-verify');
+    setFaceStatus('loading');
+    setFaceMessage('Loading stored face data...');
+    const stored = await loadFaceDescriptor(studentInfo.docId);
+    if (!stored) {
+      setFaceStatus('fail');
+      setFaceMessage('No face registered. Please register first.');
+      return;
+    }
+    await startFaceCamera();
+    setFaceStatus('capturing');
+    setFaceMessage('Look at the camera to verify your identity...');
+
+    // Auto-verify every 1.5s
+    faceIntervalRef.current = setInterval(async () => {
+      if (!videoRef.current) return;
+      const live = await getFaceDescriptor(videoRef.current);
+      if (!live) return;
+      const result = compareFaces(live, stored);
+      if (result.match) {
+        clearInterval(faceIntervalRef.current);
+        stopFaceCamera();
+        setFaceStatus('success');
+        setFaceMessage(`Identity verified! (distance: ${result.distance})`);
+        setTimeout(() => setStep('scan'), 1200);
+      } else {
+        setFaceMessage(`Verifying... (distance: ${result.distance} — need < 0.5)`);
+      }
+    }, 1500);
+  };
+
+  // ── UID confirm ──────────────────────────────────────────────────────────
+  const handleUIDConfirm = async () => {
+    if (!lookupResult?.found) return;
+    const s = lookupResult.student;
+    setStudentInfo({
+      studentId: s.id || s.uid,
+      studentName: s.name,
+      studentUID: s.uid,
+      section: s.section,
+      docId: s.id,
+      faceRegistered: s.faceRegistered || false,
+    });
+    // Go to face step
+    if (!s.faceRegistered) {
+      setStep('face-register-prompt');
+    } else {
+      setStep('face-verify-prompt');
+    }
+  };
+
+  const handleLogout = async () => {
+    await stopScanner();
+    stopFaceCamera();
+    setStep('uid');
+    setStudentInfo(null);
+    setScanResult(null);
+    setStudentUID('');
+    setLookupResult(null);
+    setFaceStatus('idle');
+    setFaceMessage('');
+    setCameraError(null);
+  };
+
+  // ── QR Scanner ───────────────────────────────────────────────────────────
   const stopScanner = async () => {
     if (html5QrcodeRef.current) {
       try {
         const state = html5QrcodeRef.current.getState();
-        // state 2 = SCANNING, state 3 = PAUSED
-        if (state === 2 || state === 3) {
-          await html5QrcodeRef.current.stop();
-        }
+        if (state === 2 || state === 3) await html5QrcodeRef.current.stop();
         html5QrcodeRef.current.clear();
-      } catch (e) {
-        // ignore cleanup errors
-      }
+      } catch {}
       html5QrcodeRef.current = null;
     }
     setScanning(false);
@@ -74,107 +199,101 @@ const StudentScanner = () => {
   const handleStartScanning = async () => {
     setScanResult(null);
     setCameraError(null);
-
-    // Check HTTPS
     if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-      setCameraError('Camera requires a secure connection (HTTPS). Please access this page via HTTPS.');
+      setCameraError('Camera requires HTTPS.');
       return;
     }
-
-    // Request camera permission explicitly first
     try {
       await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    } catch (err) {
-      setCameraError('Camera permission denied. Please allow camera access in your browser settings and try again.');
+    } catch {
+      setCameraError('Camera permission denied.');
       return;
     }
-
     try {
-      const html5Qrcode = new Html5Qrcode(scannerDivId);
-      html5QrcodeRef.current = html5Qrcode;
-
-      await html5Qrcode.start(
-        { facingMode: 'environment' }, // back camera on mobile
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0,
-          disableFlip: false,
-        },
-        onScanSuccess,
-        () => {} // ignore per-frame errors
-      );
-
+      const qr = new Html5Qrcode(scannerDivId);
+      html5QrcodeRef.current = qr;
+      await qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {});
       setScanning(true);
     } catch (err) {
-      console.error('Camera start error:', err);
-      setCameraError('Could not start camera. Make sure no other app is using it, and that you\'ve granted permission.');
+      console.error(err);
+      setCameraError('Could not start camera.');
       html5QrcodeRef.current = null;
     }
   };
 
   const onScanSuccess = async (decodedText) => {
-    // Stop scanner immediately to prevent duplicate scans
     await stopScanner();
-
     try {
       const validation = validateQRData(decodedText);
-
       if (validation.valid) {
-        console.log('[Scanner] Valid QR, writing to sessionId:', validation.data.sessionId);
         const attendance = await markAttendance(validation.data.sessionId, studentInfo, validation.data);
-        console.log('[Scanner] Attendance written:', attendance);
-        setScanResult({
-          success: true,
-          message: 'Attendance marked successfully!',
-          data: validation.data,
-          attendance,
-        });
+        setScanResult({ success: true, message: 'Attendance marked!', data: validation.data, attendance });
       } else {
         setScanResult({ success: false, message: validation.error });
       }
     } catch (err) {
-      console.error('[Scanner] Error processing QR:', err?.code, err?.message, err);
       const msg = err?.code === 'permission-denied'
-        ? 'Permission denied — Firestore rules need to allow unauthenticated writes to sessions.'
-        : `Error: ${err?.message || 'Unknown error'}`;
+        ? 'Permission denied — check Firestore rules.'
+        : `Error: ${err?.message || 'Unknown'}`;
       setScanResult({ success: false, message: msg });
     }
   };
 
-  const handleStudentLogin = async () => {
-    if (!studentUID.trim()) {
-      alert('Please enter your UID');
-      return;
-    }
-    if (!lookupResult?.found) {
-      alert('UID not found. Please check your UID and try again.');
-      return;
-    }
-    const student = lookupResult.student;
-    setStudentInfo({
-      studentId: student.id || student.uid,
-      studentName: student.name,
-      studentUID: student.uid,
-      section: student.section,
-    });
-    setIsLoggedIn(true);
-  };
+  // ── Render helpers ───────────────────────────────────────────────────────
+  const faceStatusColor = { idle: 'gray', loading: 'blue', capturing: 'blue', success: 'green', fail: 'red' }[faceStatus];
 
-  const handleLogout = async () => {
-    await stopScanner();
-    setIsLoggedIn(false);
-    setStudentInfo(null);
-    setScanResult(null);
-    setStudentUID('');
-    setCameraError(null);
-  };
+  const FaceCamera = ({ title, subtitle, actionLabel, onAction, showAuto }) => (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md p-6">
+        <div className="text-center mb-4">
+          <div className="w-14 h-14 bg-[#1E3A8A] rounded-full flex items-center justify-center mx-auto mb-3">
+            <ScanFace size={28} className="text-white" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+          <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+        </div>
 
-  // Student Login Screen
-  if (!isLoggedIn) {
+        {/* Video */}
+        <div className="relative rounded-xl overflow-hidden bg-black mb-4" style={{ aspectRatio: '4/3' }}>
+          <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+          {/* Face guide overlay */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-48 h-56 border-4 border-white/60 rounded-full" />
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className={`p-3 rounded-lg mb-4 text-sm text-center font-medium ${
+          faceStatusColor === 'green' ? 'bg-green-50 text-green-800 border border-green-200' :
+          faceStatusColor === 'red' ? 'bg-red-50 text-red-800 border border-red-200' :
+          'bg-blue-50 text-blue-800 border border-blue-200'
+        }`}>
+          {faceStatus === 'loading' && <Loader size={14} className="inline animate-spin mr-2" />}
+          {faceStatus === 'success' && <CheckCircle2 size={14} className="inline mr-2 text-green-600" />}
+          {faceMessage || 'Initializing...'}
+        </div>
+
+        {showAuto && <p className="text-xs text-center text-gray-400 mb-3">Verifying automatically...</p>}
+
+        <div className="flex gap-3">
+          {onAction && faceStatus === 'capturing' && (
+            <Button onClick={onAction} className="flex-1" icon={Camera}>{actionLabel}</Button>
+          )}
+          {faceStatus === 'fail' && (
+            <Button onClick={() => { setFaceStatus('capturing'); setFaceMessage('Try again — look at the camera.'); }} className="flex-1">
+              Try Again
+            </Button>
+          )}
+          <Button variant="outline" onClick={handleLogout} className="flex-1">Cancel</Button>
+        </div>
+      </Card>
+    </div>
+  );
+
+  // ── Step: UID entry ──────────────────────────────────────────────────────
+  if (step === 'uid') {
     const uid = studentUID.trim().toUpperCase();
     const canContinue = lookupResult?.found === true;
-
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md p-8">
@@ -185,26 +304,20 @@ const StudentScanner = () => {
             <h1 className="text-3xl font-bold text-gray-900">AttendAI Scanner</h1>
             <p className="text-gray-600 mt-2">Enter your UID to continue</p>
           </div>
-
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Student UID</label>
               <div className="relative">
-                <input
-                  type="text"
-                  value={studentUID}
-                  onChange={(e) => setStudentUID(e.target.value.toUpperCase())}
+                <input type="text" value={studentUID}
+                  onChange={e => setStudentUID(e.target.value.toUpperCase())}
                   placeholder="e.g., 24BCS10047"
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors pr-10 ${
-                    lookupResult?.found === true
-                      ? 'border-emerald-400 focus:ring-emerald-200 bg-emerald-50'
-                      : lookupResult?.found === false
-                      ? 'border-red-400 focus:ring-red-200 bg-red-50'
-                      : 'border-gray-300 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]'
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 pr-10 transition-colors ${
+                    lookupResult?.found === true ? 'border-emerald-400 bg-emerald-50 focus:ring-emerald-200' :
+                    lookupResult?.found === false ? 'border-red-400 bg-red-50 focus:ring-red-200' :
+                    'border-gray-300 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]'
                   }`}
-                  onKeyDown={(e) => e.key === 'Enter' && canContinue && handleStudentLogin()}
+                  onKeyDown={e => e.key === 'Enter' && canContinue && handleUIDConfirm()}
                 />
-                {/* Status icon inside input */}
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
                   {lookupLoading && <Loader size={18} className="animate-spin text-gray-400" />}
                   {!lookupLoading && lookupResult?.found === true && <CheckCircle2 size={18} className="text-emerald-500" />}
@@ -213,9 +326,8 @@ const StudentScanner = () => {
               </div>
             </div>
 
-            {/* Live verification card */}
             {lookupResult?.found === true && lookupResult.student && (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-4 animate-fadeIn">
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
                   {lookupResult.student.name.charAt(0)}
                 </div>
@@ -224,7 +336,9 @@ const StudentScanner = () => {
                   <p className="text-sm text-emerald-700">{lookupResult.student.uid}</p>
                   <p className="text-xs text-emerald-600 mt-0.5">Section {lookupResult.student.section} • {lookupResult.student.year}</p>
                 </div>
-                <CheckCircle2 size={22} className="text-emerald-500 flex-shrink-0" />
+                {lookupResult.student.faceRegistered
+                  ? <Badge variant="success" className="text-xs">Face ✓</Badge>
+                  : <Badge variant="warning" className="text-xs">No Face</Badge>}
               </div>
             )}
 
@@ -239,24 +353,20 @@ const StudentScanner = () => {
               </div>
             )}
 
-            <Button
-              onClick={handleStudentLogin}
-              className="w-full py-3"
-              disabled={!canContinue || lookupLoading}
-            >
+            <Button onClick={handleUIDConfirm} className="w-full py-3" disabled={!canContinue || lookupLoading}>
               {lookupLoading ? 'Verifying...' : canContinue ? `Continue as ${lookupResult.student.name.split(' ')[0]}` : 'Enter your UID above'}
             </Button>
           </div>
 
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex gap-2">
-              <AlertCircle size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
+              <AlertCircle size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-900">
                 <p className="font-medium mb-1">Section 605A UIDs:</p>
-                <ul className="text-blue-800 space-y-1">
-                  <li>• 24BCS10047 (Rohit Raj)</li>
-                  <li>• 24BCS10096 (Diya Sharma)</li>
-                  <li>• 24BCS12794 (Aarav Sharma)</li>
+                <ul className="text-blue-800 space-y-0.5 text-xs">
+                  <li>• 24BCS10047 — Rohit Raj</li>
+                  <li>• 24BCS10096 — Diya Sharma</li>
+                  <li>• 24BCS12794 — Aarav Sharma</li>
                 </ul>
               </div>
             </div>
@@ -266,29 +376,101 @@ const StudentScanner = () => {
     );
   }
 
-  // Scanner Screen
+  // ── Step: prompt to register face ────────────────────────────────────────
+  if (step === 'face-register-prompt') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 text-center">
+          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ScanFace size={32} className="text-amber-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Register Your Face</h2>
+          <p className="text-gray-600 text-sm mb-6">
+            You haven't registered your face yet. This is a one-time setup — it takes about 5 seconds.
+          </p>
+          <div className="space-y-3">
+            <Button onClick={handleStartRegister} className="w-full" icon={Camera} disabled={!modelsReady}>
+              {modelsReady ? 'Register Face Now' : 'Loading AI models...'}
+            </Button>
+            <Button variant="outline" onClick={handleLogout} className="w-full">Back</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Step: face registration camera ───────────────────────────────────────
+  if (step === 'face-register') {
+    return <FaceCamera
+      title="Register Your Face"
+      subtitle="Position your face in the oval and tap Capture"
+      actionLabel="Capture Face"
+      onAction={handleCaptureFace}
+      showAuto={false}
+    />;
+  }
+
+  // ── Step: prompt to verify face ──────────────────────────────────────────
+  if (step === 'face-verify-prompt') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 text-center">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ShieldCheck size={32} className="text-[#1E3A8A]" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Verify Your Identity</h2>
+          <p className="text-gray-600 text-sm mb-2">
+            Hi <span className="font-semibold">{studentInfo?.studentName}</span>! Quick face check before scanning.
+          </p>
+          <p className="text-xs text-gray-400 mb-6">This prevents proxy attendance.</p>
+          <div className="space-y-3">
+            <Button onClick={handleStartVerify} className="w-full" icon={ScanFace} disabled={!modelsReady}>
+              {modelsReady ? 'Verify Face' : 'Loading AI models...'}
+            </Button>
+            <Button variant="outline" onClick={handleLogout} className="w-full">Back</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Step: face verification camera ───────────────────────────────────────
+  if (step === 'face-verify') {
+    return <FaceCamera
+      title="Face Verification"
+      subtitle="Look at the camera — verifying automatically"
+      actionLabel={null}
+      onAction={null}
+      showAuto={true}
+    />;
+  }
+
+  // ── Step: QR scan ────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
       <div className="max-w-md mx-auto py-8">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="w-16 h-16 bg-[#1E3A8A] rounded-full flex items-center justify-center mx-auto mb-4">
             <QrCode size={32} className="text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">AttendAI Scanner</h1>
-          <p className="text-gray-600 mt-2">Scan QR code to mark your attendance</p>
+          <p className="text-gray-600 mt-1">Scan QR code to mark attendance</p>
         </div>
 
         {/* Student Info */}
         <Card className="mb-6 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-blue-100 text-[#1E3A8A] flex items-center justify-center font-bold text-lg">
                 {studentInfo?.studentName.charAt(0)}
               </div>
               <div>
                 <p className="font-bold text-gray-900">{studentInfo?.studentName}</p>
                 <p className="text-sm text-gray-600">{studentInfo?.studentUID}</p>
-                <Badge variant="neutral" className="mt-1 text-xs">Section {studentInfo?.section}</Badge>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="neutral" className="text-xs">Section {studentInfo?.section}</Badge>
+                  <Badge variant="success" className="text-xs flex items-center gap-1"><ShieldCheck size={10} /> Verified</Badge>
+                </div>
               </div>
             </div>
             <Button variant="outline" onClick={handleLogout} className="text-sm">Logout</Button>
@@ -298,49 +480,29 @@ const StudentScanner = () => {
         {/* Scanner */}
         {!scanResult && (
           <Card className="mb-6 p-6">
-            {/* Camera viewport — always in DOM so Html5Qrcode can attach to it */}
-            <div
-              id={scannerDivId}
-              className={`rounded-lg overflow-hidden mb-4 ${scanning ? 'block' : 'hidden'}`}
-              style={{ width: '100%', minHeight: '300px' }}
-            />
-
+            <div id={scannerDivId} className={`rounded-lg overflow-hidden mb-4 ${scanning ? 'block' : 'hidden'}`} style={{ width: '100%', minHeight: '300px' }} />
             {!scanning && (
               <div className="text-center">
                 <div className="w-48 h-48 mx-auto mb-6 border-4 border-dashed border-gray-300 rounded-2xl flex items-center justify-center bg-gray-50">
                   <QrCode size={64} className="text-gray-400" />
                 </div>
-                <Button onClick={handleStartScanning} className="w-full mb-3" icon={Camera}>
-                  Open Camera to Scan
-                </Button>
+                <Button onClick={handleStartScanning} className="w-full mb-3" icon={Camera}>Open Camera to Scan</Button>
                 <p className="text-sm text-gray-500">Tap to activate your back camera</p>
               </div>
             )}
-
             {scanning && (
               <>
-                <Button onClick={stopScanner} variant="outline" className="w-full mb-3" icon={StopCircle}>
-                  Stop Scanner
-                </Button>
+                <Button onClick={stopScanner} variant="outline" className="w-full mb-3" icon={StopCircle}>Stop Scanner</Button>
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
                   <p className="text-sm text-blue-900">📷 Point camera at the QR code</p>
                 </div>
               </>
             )}
-
             {cameraError && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                 <div className="flex gap-2">
-                  <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-red-900">
-                    <p className="font-medium mb-2">{cameraError}</p>
-                    <ol className="list-decimal list-inside space-y-1 text-red-800">
-                      <li>Make sure you're on HTTPS</li>
-                      <li>Tap the lock/camera icon in your browser address bar</li>
-                      <li>Set Camera to "Allow"</li>
-                      <li>Refresh and try again</li>
-                    </ol>
-                  </div>
+                  <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
+                  <p className="text-sm text-red-900">{cameraError}</p>
                 </div>
               </div>
             )}
@@ -351,19 +513,14 @@ const StudentScanner = () => {
         {scanResult && (
           <Card className={`p-6 ${scanResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
             <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                scanResult.success ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-              }`}>
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${scanResult.success ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
                 {scanResult.success ? <CheckCircle size={24} /> : <XCircle size={24} />}
               </div>
               <div className="flex-1">
                 <h3 className={`font-bold mb-2 ${scanResult.success ? 'text-green-900' : 'text-red-900'}`}>
                   {scanResult.success ? 'Attendance Marked!' : 'Scan Failed'}
                 </h3>
-                <p className={`text-sm mb-4 ${scanResult.success ? 'text-green-800' : 'text-red-800'}`}>
-                  {scanResult.message}
-                </p>
-
+                <p className={`text-sm mb-4 ${scanResult.success ? 'text-green-800' : 'text-red-800'}`}>{scanResult.message}</p>
                 {scanResult.success && scanResult.data && (
                   <div className="space-y-2 text-sm mb-4">
                     {[['Subject', scanResult.data.subject], ['Teacher', scanResult.data.teacher], ['Room', scanResult.data.room], ['Time', scanResult.data.time]].map(([label, val]) => (
@@ -374,40 +531,9 @@ const StudentScanner = () => {
                     ))}
                   </div>
                 )}
-
-                <Button
-                  onClick={() => { setScanResult(null); handleStartScanning(); }}
-                  variant={scanResult.success ? 'outline' : 'primary'}
-                  className="w-full"
-                >
+                <Button onClick={() => { setScanResult(null); handleStartScanning(); }} variant={scanResult.success ? 'outline' : 'primary'} className="w-full">
                   {scanResult.success ? 'Scan Another' : 'Try Again'}
                 </Button>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Instructions */}
-        {!scanResult && (
-          <Card className="mt-6 p-4 bg-blue-50 border-blue-200">
-            <div className="flex gap-3">
-              <AlertCircle size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-900">
-                <p className="font-medium mb-2">How to mark attendance:</p>
-                <ol className="list-decimal list-inside space-y-1 text-blue-800">
-                  <li>Tap "Open Camera to Scan"</li>
-                  <li>Allow camera access when prompted</li>
-                  <li>Point camera at teacher's QR code</li>
-                  <li>Attendance marked automatically</li>
-                </ol>
-                <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                  <p className="text-xs text-yellow-900 font-medium">
-                    ⚠️ Camera only works on HTTPS
-                  </p>
-                  <p className="text-xs text-yellow-800 mt-1">
-                    QR codes refresh every 5 seconds — scan the latest one.
-                  </p>
-                </div>
               </div>
             </div>
           </Card>

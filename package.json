@@ -10,6 +10,7 @@
     "lint": "eslint src --ext js,jsx"
   },
   "dependencies": {
+    "face-api.js": "^0.22.2",
     "firebase": "^12.11.0",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.344.0",
