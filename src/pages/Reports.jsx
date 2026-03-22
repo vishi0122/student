@@ -1,43 +1,56 @@
-import React from 'react';
-import { Download, Filter, BarChart3, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Download, Filter, BarChart3, FileText, Loader } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
+import { getSessions } from '../services/dataService';
 
 const Reports = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const isCollege = user?.instType === 'college';
   const isFaculty = user?.role === 'faculty';
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ avgAttendance: 0, totalSessions: 0, lowAttendance: 0 });
 
-  // Different reports based on institution type and role
-  const collegeAdminReports = [
-    { name: 'Campus Monthly Overview', date: 'Oct 31, 2025', type: 'System Auto-Gen' },
-    { name: 'Defaulters List (Below 75%)', date: 'Oct 28, 2025', type: 'Manual Export' },
-    { name: 'CS101 - Section A Attendance Log', date: 'Oct 25, 2025', type: 'Subject Specific' },
-    { name: 'Semester Attendance Summary', date: 'Oct 20, 2025', type: 'System Auto-Gen' },
-  ];
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const filters = isFaculty && user?.name ? { teacher: user.name } : {};
+      const data = await getSessions(filters);
+      setSessions(data);
 
-  const collegeFacultyReports = [
-    { name: 'My Lectures Overview', date: 'Oct 31, 2025', type: 'System Auto-Gen' },
-    { name: 'CS101 - Section A Attendance', date: 'Oct 30, 2025', type: 'Subject Specific' },
-    { name: 'CS101 - Section B Attendance', date: 'Oct 30, 2025', type: 'Subject Specific' },
-    { name: 'Data Structures - Lab Attendance', date: 'Oct 29, 2025', type: 'Subject Specific' },
-    { name: 'Database Systems - Lecture Attendance', date: 'Oct 28, 2025', type: 'Subject Specific' },
-    { name: 'Low Attendance Students (My Classes)', date: 'Oct 25, 2025', type: 'Manual Export' },
-  ];
+      // Compute stats from real data
+      const totalAttendees = data.reduce((sum, s) => sum + (s.attendees?.length || 0), 0);
+      const totalExpected = data.length * 45;
+      const avg = totalExpected > 0 ? Math.round((totalAttendees / totalExpected) * 100) : 0;
+      const low = data.filter(s => {
+        const pct = s.attendees?.length ? Math.round((s.attendees.length / 45) * 100) : 0;
+        return pct < 75;
+      }).length;
 
-  const schoolReports = [
-    { name: isAdmin ? 'School Daily Overview' : 'My Class Overview', date: 'Oct 31, 2025', type: 'System Auto-Gen' },
-    { name: 'Absentee Report - Class 10', date: 'Oct 30, 2025', type: 'Manual Export' },
-    { name: 'Monthly Attendance Summary', date: 'Oct 28, 2025', type: 'System Auto-Gen' },
-    { name: 'Parent Notification List', date: 'Oct 25, 2025', type: 'Manual Export' },
-  ];
+      setStats({ avgAttendance: avg, totalSessions: data.length, lowAttendance: low });
+      setLoading(false);
+    };
+    load();
+  }, [user]);
 
-  const reports = isCollege 
-    ? (isFaculty ? collegeFacultyReports : collegeAdminReports)
-    : schoolReports;
+  const handleExportCSV = () => {
+    if (sessions.length === 0) return;
+    const rows = [['Session ID', 'Subject', 'Teacher', 'Section', 'Date', 'Time', 'Room', 'Present', 'Status']];
+    sessions.forEach(s => {
+      rows.push([s.sessionId, s.subject, s.teacher, s.section, s.date, s.time, s.room, s.attendees?.length || 0, s.status]);
+    });
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_report_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <DashboardLayout>
@@ -45,63 +58,73 @@ const Reports = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Analytics & Reports</h1>
-            <p className="text-gray-500 text-sm mt-1">Comprehensive attendance data and exportable insights.</p>
+            <p className="text-gray-500 text-sm mt-1">Live attendance data from Firestore.</p>
           </div>
-          <Button icon={Download} className="bg-[#1E3A8A] hover:bg-blue-900 text-white">
-            Export CSV
-          </Button>
+          <Button icon={Download} onClick={handleExportCSV}>Export CSV</Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="p-6 border-t-4 border-t-[#1E3A8A]">
-            <p className="text-sm font-medium text-gray-500 mb-1">Average Attendance</p>
-            <p className="text-3xl font-bold text-gray-900">{isAdmin ? '89.4%' : '94.2%'}</p>
-            <p className="text-xs text-emerald-600 flex items-center mt-2 font-medium">
-              <BarChart3 size={14} className="mr-1"/> +1.2% from last month
-            </p>
-          </Card>
+        {loading ? (
+          <div className="flex items-center justify-center py-16"><Loader size={32} className="animate-spin text-[#1E3A8A]"/></div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="p-6 border-t-4 border-t-[#1E3A8A]">
+                <p className="text-sm font-medium text-gray-500 mb-1">Average Attendance</p>
+                <p className="text-3xl font-bold text-gray-900">{stats.avgAttendance}%</p>
+                <p className="text-xs text-gray-500 mt-2">Across all sessions</p>
+              </Card>
+              <Card className="p-6 border-t-4 border-t-[#10B981]">
+                <p className="text-sm font-medium text-gray-500 mb-1">{isAdmin ? 'Total Sessions' : 'My Sessions'}</p>
+                <p className="text-3xl font-bold text-gray-900">{stats.totalSessions}</p>
+                <p className="text-xs text-gray-500 mt-2">Recorded in database</p>
+              </Card>
+              <Card className="p-6 border-t-4 border-t-amber-500">
+                <p className="text-sm font-medium text-gray-500 mb-1">Low Attendance Sessions</p>
+                <p className="text-3xl font-bold text-gray-900">{stats.lowAttendance}</p>
+                <p className="text-xs text-amber-600 mt-2">Sessions below 75% threshold</p>
+              </Card>
+            </div>
 
-          <Card className="p-6 border-t-4 border-t-[#10B981]">
-            <p className="text-sm font-medium text-gray-500 mb-1">
-              {isAdmin ? 'Total Classes Held' : 'My Classes Held'}
-            </p>
-            <p className="text-3xl font-bold text-gray-900">{isAdmin ? '248' : '42'}</p>
-            <p className="text-xs text-gray-500 mt-2 font-medium">
-              {isAdmin ? 'Across all subjects' : 'This semester'}
-            </p>
-          </Card>
-
-          <Card className="p-6 border-t-4 border-t-amber-500">
-            <p className="text-sm font-medium text-gray-500 mb-1">Low Attendance Flags</p>
-            <p className="text-3xl font-bold text-gray-900">{isAdmin ? '14' : '3'}</p>
-            <p className="text-xs text-amber-600 mt-2 font-medium">Students below 75% threshold</p>
-          </Card>
-        </div>
-
-        <Card className="overflow-hidden">
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
-            <h3 className="font-bold text-gray-900">Recent Automated Reports</h3>
-            <Button variant="ghost" icon={Filter} className="text-sm">Filter</Button>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {reports.map((report, i) => (
-              <div key={i} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 text-[#1E3A8A] flex items-center justify-center">
-                    <FileText size={20} />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900 text-sm">{report.name}</p>
-                    <p className="text-xs text-gray-500">{report.type} • Generated on {report.date}</p>
-                  </div>
-                </div>
-                <button className="text-[#10B981] hover:text-emerald-700 p-2 rounded-full hover:bg-emerald-50 transition-colors">
-                  <Download size={18} />
-                </button>
+            <Card className="overflow-hidden">
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+                <h3 className="font-bold text-gray-900">Session Records</h3>
+                <span className="text-sm text-gray-500">{sessions.length} total</span>
               </div>
-            ))}
-          </div>
-        </Card>
+              <div className="divide-y divide-gray-200">
+                {sessions.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400">No sessions recorded yet. Start a live session to see data here.</div>
+                ) : sessions.map((session, i) => {
+                  const present = session.attendees?.length || 0;
+                  const pct = Math.round((present / 45) * 100);
+                  return (
+                    <div key={i} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-lg bg-blue-50 text-[#1E3A8A] flex items-center justify-center">
+                          <FileText size={20} />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900 text-sm">{session.subject} — Section {session.section}</p>
+                          <p className="text-xs text-gray-500">{session.teacher} • {session.date} {session.time} • Room {session.room}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-gray-900">{present}/45</p>
+                          <p className={`text-xs font-medium ${pct >= 75 ? 'text-emerald-600' : 'text-amber-600'}`}>{pct}%</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          session.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {session.status}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -38,12 +38,16 @@ const LiveSession = () => {
       const lecture = detectCurrentLecture('601A');
       setCurrentLecture(lecture);
 
-      // createAttendanceSession is now async (writes to Firestore)
+      // Use subject/section passed from Attendance page, fall back to auto-detected lecture
+      const subject = location.state?.subject || lecture?.subject || 'General Session';
+      const section = location.state?.section || lecture?.section || '601A';
+      const room = lecture?.room || '208';
+
       const newSession = await createAttendanceSession({
-        subject: lecture?.subject || 'Computer Science 101',
-        section: '601A',
+        subject,
+        section,
         teacher: user?.name || lecture?.teacher || 'Faculty',
-        room: lecture?.room || '208',
+        room,
       });
       setSession(newSession);
       updateQRCode(newSession);
