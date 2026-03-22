@@ -146,6 +146,11 @@ const StudentScanner = () => {
 
   const handleCaptureFace = async () => {
     if (!videoRef.current || faceStatus === 'loading') return;
+    if (!studentInfo?.docId) {
+      setFaceStatus('fail');
+      setFaceMessage('Student ID missing — go back and re-enter your UID.');
+      return;
+    }
     setFaceStatus('loading');
     try {
       const descriptors = await captureMultipleDescriptors(videoRef.current, 8, (i, total) => {
@@ -153,10 +158,10 @@ const StudentScanner = () => {
       });
       if (descriptors.length < 3) {
         setFaceStatus('fail');
-        setFaceMessage('Could not detect face clearly. Ensure good lighting and face the camera directly.');
+        setFaceMessage(`Only got ${descriptors.length} samples. Ensure good lighting and face the camera directly.`);
         return;
       }
-      setFaceMessage(`Saving ${descriptors.length} samples...`);
+      setFaceMessage(`Saving ${descriptors.length} samples to database...`);
       await saveFaceDescriptors(studentInfo.docId, descriptors);
       stopFaceCamera();
       setFaceStatus('success');
@@ -164,8 +169,8 @@ const StudentScanner = () => {
       setTimeout(() => setStep('scan'), 1500);
     } catch (err) {
       setFaceStatus('fail');
-      setFaceMessage('Failed to save face. Try again.');
-      console.error(err);
+      setFaceMessage(`Failed: ${err?.message || 'Unknown error'}. Try again.`);
+      console.error('handleCaptureFace error:', err);
     }
   };
 
@@ -181,11 +186,11 @@ const StudentScanner = () => {
     if (!lookupResult?.found) return;
     const s = lookupResult.student;
     setStudentInfo({
-      studentId: s.id || s.uid,
+      studentId: s.id,
       studentName: s.name,
       studentUID: s.uid,
       section: s.section,
-      docId: s.id,
+      docId: s.id,   // Firestore document ID — required for face save
       faceRegistered: s.faceRegistered || false,
     });
     // Go to face step

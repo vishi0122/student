@@ -14,13 +14,15 @@ export const getStudents = async (filters = {}) => {
   if (filters.institution) constraints.push(where('institution', '==', filters.institution));
   if (constraints.length) q = query(q, ...constraints);
   const snap = await getDocs(q);
-  return snap.docs.map(d => d.data());
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
 
 export const getStudentByUID = async (uid) => {
   const q = query(collection(db, 'students'), where('uid', '==', uid));
   const snap = await getDocs(q);
-  return snap.empty ? null : snap.docs[0].data();
+  if (snap.empty) return null;
+  // Include the Firestore doc ID as `id` field
+  return { id: snap.docs[0].id, ...snap.docs[0].data() };
 };
 
 export const addStudent = async (data) => {
