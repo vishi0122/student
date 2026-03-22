@@ -76,23 +76,21 @@ const Dashboard = () => {
           <QuickActions actions={config.actions} />
         </div>
 
-        {/* Admin-only: update student roster */}
-        {user?.role === 'admin' && (
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-yellow-900">Admin: Update Student Roster</p>
-              <p className="text-xs text-yellow-700 mt-0.5">Replaces students collection with the latest 605A data.</p>
-            </div>
-            <button
-              onClick={handleReseedStudents}
-              disabled={seedStatus === 'seeding'}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors whitespace-nowrap"
-            >
-              <Database size={15} />
-              {seedStatus === 'seeding' ? 'Updating...' : seedStatus === 'done' ? '✅ Done!' : seedStatus === 'error' ? '❌ Error' : 'Update Students (605A)'}
-            </button>
+        {/* Update student roster — visible to all logged-in users */}
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-yellow-900">Update Student Roster (605A)</p>
+            <p className="text-xs text-yellow-700 mt-0.5">Replaces students collection with the real 605A data.</p>
           </div>
-        )}
+          <button
+            onClick={handleReseedStudents}
+            disabled={seedStatus === 'seeding'}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors whitespace-nowrap"
+          >
+            <Database size={15} />
+            {seedStatus === 'seeding' ? 'Updating...' : seedStatus === 'done' ? '✅ Done!' : seedStatus === 'error' ? '❌ Error — check console' : 'Update Students (605A)'}
+          </button>
+        </div>
       </div>
     </DashboardLayout>
   );
