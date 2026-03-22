@@ -40,10 +40,13 @@ const StudentScanner = () => {
 
     lookupTimer.current = setTimeout(async () => {
       try {
+        console.log('[Scanner] Looking up UID:', uid);
         const student = await getStudentByUID(uid);
+        console.log('[Scanner] Lookup result:', student);
         setLookupResult({ found: !!student, student: student || null });
-      } catch {
-        setLookupResult({ found: false, student: null });
+      } catch (err) {
+        console.error('[Scanner] Lookup error:', err?.code, err?.message);
+        setLookupResult({ found: false, student: null, error: err?.code });
       }
       setLookupLoading(false);
     }, 600);
@@ -228,7 +231,11 @@ const StudentScanner = () => {
             {lookupResult?.found === false && uid.length >= 6 && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
                 <XCircle size={16} className="text-red-500 flex-shrink-0" />
-                <p className="text-sm text-red-700">UID not found. Check your university ID card.</p>
+                <p className="text-sm text-red-700">
+                  {lookupResult.error === 'permission-denied'
+                    ? 'Database permission error — contact your teacher.'
+                    : 'UID not found. Check your university ID card.'}
+                </p>
               </div>
             )}
 
