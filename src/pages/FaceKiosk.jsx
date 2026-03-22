@@ -341,8 +341,9 @@ const FaceKiosk = () => {
                       <div className="w-16 h-16 rounded-full bg-red-500/80 flex items-center justify-center mx-auto mb-3">
                         <AlertCircle size={36} className="text-white" />
                       </div>
-                      <p className="text-2xl font-bold mb-1">Not Recognized</p>
-                      <p className="text-sm text-red-200">Register your face at /scan first</p>
+                      <p className="text-2xl font-bold mb-1">Not Registered</p>
+                      <p className="text-sm text-red-200">Your face is not in the system.</p>
+                      <p className="text-sm text-red-200">Visit /scan to register first.</p>
                     </div>
                   </div>
                 )}
@@ -351,8 +352,9 @@ const FaceKiosk = () => {
                   <div className="absolute inset-0 flex items-center justify-center bg-amber-900/50 backdrop-blur-sm">
                     <div className="text-center text-white px-6">
                       <CheckCircle2 size={56} className="text-amber-300 mx-auto mb-3" />
-                      <p className="text-2xl font-bold mb-1">Already Marked</p>
-                      <p className="text-sm text-amber-200">Attendance already recorded for this session</p>
+                      <p className="text-2xl font-bold mb-1">No Duplicate Attendance</p>
+                      <p className="text-sm text-amber-200">You have already marked attendance</p>
+                      <p className="text-sm text-amber-200">for this session.</p>
                     </div>
                   </div>
                 )}
