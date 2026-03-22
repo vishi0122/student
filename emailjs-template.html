@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Attendance Alert</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:30px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:#1E3A8A;padding:28px 32px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;">
+                📋 AttendAI
+              </h1>
+              <p style="margin:6px 0 0;color:#93c5fd;font-size:13px;">
+                Chandigarh University — Attendance Management System
+              </p>
+            </td>
+          </tr>
+
+          <!-- Alert Banner -->
+          <tr>
+            <td style="background:#fef2f2;border-left:4px solid #ef4444;padding:14px 32px;">
+              <p style="margin:0;color:#b91c1c;font-size:14px;font-weight:600;">
+                ⚠️ Absence Notification
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:28px 32px;">
+              <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
+                Dear Parent / Guardian,
+              </p>
+              <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.6;">
+                This is to inform you that <strong style="color:#1E3A8A;">{{student_name}}</strong>
+                was marked <strong style="color:#ef4444;">absent</strong> in the following class:
+              </p>
+
+              <!-- Details Card -->
+              <table width="100%" cellpadding="0" cellspacing="0"
+                style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <table width="100%" cellpadding="6" cellspacing="0">
+                      <tr>
+                        <td style="color:#6b7280;font-size:13px;width:110px;">📚 Subject</td>
+                        <td style="color:#111827;font-size:14px;font-weight:600;">{{subject_name}}</td>
+                      </tr>
+                      <tr>
+                        <td style="color:#6b7280;font-size:13px;">📅 Date</td>
+                        <td style="color:#111827;font-size:14px;font-weight:600;">{{date}}</td>
+                      </tr>
+                      <tr>
+                        <td style="color:#6b7280;font-size:13px;">👨‍🏫 Teacher</td>
+                        <td style="color:#111827;font-size:14px;font-weight:600;">{{teacher}}</td>
+                      </tr>
+                      <tr>
+                        <td style="color:#6b7280;font-size:13px;">🏫 Section</td>
+                        <td style="color:#111827;font-size:14px;font-weight:600;">{{section}}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 24px;color:#374151;font-size:14px;line-height:1.6;">
+                Regular attendance is important for academic performance. Please ensure
+                <strong>{{student_name}}</strong> attends all scheduled classes.
+              </p>
+
+              <p style="margin:0;color:#374151;font-size:14px;line-height:1.6;">
+                If you have any questions, please contact the teacher directly.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f8fafc;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center;">
+              <p style="margin:0;color:#9ca3af;font-size:12px;">
+                This is an automated message from AttendAI · Chandigarh University
+              </p>
+              <p style="margin:6px 0 0;color:#9ca3af;font-size:12px;">
+                Please do not reply to this email.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

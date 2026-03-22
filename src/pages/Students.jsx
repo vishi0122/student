@@ -16,7 +16,8 @@ const Students = () => {
   const [search, setSearch] = useState('');
   const [selectedSection, setSelectedSection] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newStudent, setNewStudent] = useState({ name: '', uid: '', section: '601A', year: '2nd Year', email: '', faceRegistered: false, institution: 'college' });
+  const [editStudent, setEditStudent] = useState(null); // student being edited
+  const [newStudent, setNewStudent] = useState({ name: '', uid: '', section: '601A', year: '2nd Year', email: '', parentEmail: '', faceRegistered: false, institution: 'college' });
 
   const sections = user?.sections || [];
 
@@ -43,7 +44,14 @@ const Students = () => {
     await addStudent({ ...newStudent, id });
     setStudents(prev => [...prev, { ...newStudent, id }]);
     setShowAddModal(false);
-    setNewStudent({ name: '', uid: '', section: '601A', year: '2nd Year', email: '', faceRegistered: false, institution: 'college' });
+    setNewStudent({ name: '', uid: '', section: '601A', year: '2nd Year', email: '', parentEmail: '', faceRegistered: false, institution: 'college' });
+  };
+
+  const handleEditSave = async () => {
+    if (!editStudent) return;
+    await updateStudent(editStudent.id, { parentEmail: editStudent.parentEmail, email: editStudent.email, name: editStudent.name });
+    setStudents(prev => prev.map(s => s.id === editStudent.id ? { ...s, ...editStudent } : s));
+    setEditStudent(null);
   };
 
   const handleToggleFace = async (student) => {
@@ -107,13 +115,14 @@ const Students = () => {
                     <th className="p-4 font-medium">UID</th>
                     <th className="p-4 font-medium">Section</th>
                     <th className="p-4 font-medium">Year</th>
+                    <th className="p-4 font-medium">Parent Email</th>
                     <th className="p-4 font-medium">Face Profile</th>
-                    {isAdmin && <th className="p-4 font-medium text-right">Actions</th>}
+                    {(isAdmin || isFaculty) && <th className="p-4 font-medium text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filtered.length === 0 ? (
-                    <tr><td colSpan={isAdmin ? 6 : 5} className="p-8 text-center text-gray-400">No students found</td></tr>
+                    <tr><td colSpan={isAdmin ? 7 : 6} className="p-8 text-center text-gray-400">No students found</td></tr>
                   ) : filtered.map(student => (
                     <tr key={student.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-4 flex items-center gap-3">
@@ -129,6 +138,12 @@ const Students = () => {
                         </span>
                       </td>
                       <td className="p-4 text-gray-600 text-sm">{student.year}</td>
+                      <td className="p-4 text-gray-600 text-sm">
+                        {student.parentEmail
+                          ? <span className="text-blue-700">{student.parentEmail}</span>
+                          : <span className="text-amber-500 italic text-xs">Not set</span>
+                        }
+                      </td>
                       <td className="p-4">
                         {student.faceRegistered ? (
                           <Badge variant="success"><span className="flex items-center gap-1"><CheckCircle2 size={12}/> Registered</span></Badge>
@@ -136,14 +151,19 @@ const Students = () => {
                           <Badge variant="warning"><span className="flex items-center gap-1"><XCircle size={12}/> Pending</span></Badge>
                         )}
                       </td>
-                      {isAdmin && (
+                      {(isAdmin || isFaculty) && (
                         <td className="p-4 text-right space-x-3">
-                          <button onClick={() => handleToggleFace(student)} className="text-[#10B981] hover:text-emerald-700 text-sm font-medium">
-                            {student.faceRegistered ? 'Unregister' : 'Register Face'}
+                          <button onClick={() => setEditStudent({ ...student })} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            Edit Email
                           </button>
-                          <button onClick={() => handleDelete(student.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">
-                            Delete
-                          </button>
+                          {isAdmin && <>
+                            <button onClick={() => handleToggleFace(student)} className="text-[#10B981] hover:text-emerald-700 text-sm font-medium">
+                              {student.faceRegistered ? 'Unregister' : 'Register Face'}
+                            </button>
+                            <button onClick={() => handleDelete(student.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">
+                              Delete
+                            </button>
+                          </>}
                         </td>
                       )}
                     </tr>
@@ -159,7 +179,7 @@ const Students = () => {
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <Card className="w-full max-w-md p-6 space-y-4">
               <h2 className="text-lg font-bold text-gray-900">Add New Student</h2>
-              {[['Name', 'name', 'text', 'Full Name'], ['UID', 'uid', 'text', 'e.g. 24BCS10099'], ['Email', 'email', 'email', 'student@cumail.in']].map(([label, field, type, placeholder]) => (
+              {[['Name', 'name', 'text', 'Full Name'], ['UID', 'uid', 'text', 'e.g. 24BCS10099'], ['Email', 'email', 'email', 'student@cumail.in'], ['Parent Email', 'parentEmail', 'email', 'parent@gmail.com']].map(([label, field, type, placeholder]) => (
                 <div key={field}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
                   <input type={type} placeholder={placeholder} value={newStudent[field]}
@@ -178,6 +198,34 @@ const Students = () => {
               <div className="flex gap-3 pt-2">
                 <Button onClick={handleAdd} className="flex-1">Add Student</Button>
                 <Button variant="outline" onClick={() => setShowAddModal(false)} className="flex-1">Cancel</Button>
+              </div>
+            </Card>
+          </div>
+        )}
+        {/* Edit Email Modal */}
+        {editStudent && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-sm p-6 space-y-4">
+              <h2 className="text-lg font-bold text-gray-900">Edit Emails — {editStudent.name}</h2>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Student Email</label>
+                <input type="email" value={editStudent.email || ''}
+                  onChange={e => setEditStudent(p => ({ ...p, email: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Parent Email</label>
+                <input type="email" value={editStudent.parentEmail || ''}
+                  onChange={e => setEditStudent(p => ({ ...p, parentEmail: e.target.value }))}
+                  placeholder="parent@gmail.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
+                />
+                <p className="text-xs text-gray-400 mt-1">Absence notifications will be sent to this email.</p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button onClick={handleEditSave} className="flex-1">Save</Button>
+                <Button variant="outline" onClick={() => setEditStudent(null)} className="flex-1">Cancel</Button>
               </div>
             </Card>
           </div>

@@ -114,8 +114,9 @@ const SessionDetail = () => {
     setNotifySending(false);
   };
 
-  const absentWithEmail = roster.filter(s => !s.present && (s.parentEmail || s.email));
+  const presentCount = roster.filter(s => s.present).length;
   const absentCount = roster.filter(s => !s.present).length;
+  const absentWithEmail = roster.filter(s => !s.present && (s.parentEmail || s.email));
   const pct = roster.length > 0 ? Math.round((presentCount / roster.length) * 100) : 0;
 
   const filtered = roster.filter(s => {
@@ -313,7 +314,11 @@ VITE_EMAILJS_PUBLIC_KEY=your_key`}</pre>
                 <>
                   <p className="text-sm text-gray-600 mb-4">
                     {notifyTarget
-                      ? `An absence notification will be sent to: ${notifyTarget.parentEmail || notifyTarget.email}`
+                      ? <>An absence notification will be sent to: <span className="font-medium text-blue-700">{notifyTarget.parentEmail || notifyTarget.email}</span>
+                          {notifyTarget.parentEmail
+                            ? <span className="ml-1 text-xs text-gray-400">(parent email)</span>
+                            : <span className="ml-1 text-xs text-amber-500">(student email — no parent email set)</span>
+                          }</>
                       : `Absence notifications will be sent to ${absentWithEmail.length} student${absentWithEmail.length !== 1 ? 's' : ''} with email on file.`
                     }
                   </p>
