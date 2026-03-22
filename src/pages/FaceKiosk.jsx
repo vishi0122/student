@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { loadModels, getFaceDescriptor, compareFacesMulti } from '../services/faceService';
+import { loadModels, getFaceDescriptor, compareFacesMulti, loadFaceDescriptors } from '../services/faceService';
 import attendanceStore from '../services/attendanceStore';
 import { createAttendanceSession } from '../services/qrService';
 import { useAuth } from '../context/AuthContext';
@@ -113,23 +113,21 @@ const FaceKiosk = () => {
 
   const loadStudentDescriptors = async () => {
     const snap = await getDocs(collection(db, 'students'));
-    return snap.docs.map(d => {
+    const results = [];
+    for (const d of snap.docs) {
       const data = d.data();
-      // Support both multi-descriptor (new) and single-descriptor (legacy)
-      let descriptors = null;
-      if (data.faceDescriptors?.length) {
-        descriptors = data.faceDescriptors.map(fd => new Float32Array(fd));
-      } else if (data.faceDescriptor) {
-        descriptors = [new Float32Array(data.faceDescriptor)];
+      const descriptors = await loadFaceDescriptors(d.id);
+      if (descriptors) {
+        results.push({
+          docId: d.id,
+          uid: data.uid,
+          name: data.name,
+          section: data.section,
+          descriptors,
+        });
       }
-      return {
-        docId: d.id,
-        uid: data.uid,
-        name: data.name,
-        section: data.section,
-        descriptors, // array of Float32Array | null
-      };
-    });
+    }
+    return results;
   };
 
   const startCameraStream = async () => {

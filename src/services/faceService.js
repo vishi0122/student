@@ -39,11 +39,15 @@ export const captureMultipleDescriptors = async (videoEl, count = 8, onProgress)
 };
 
 // Save multiple raw descriptors to Firestore
+// Firestore doesn't support nested arrays, so we store as a map: { d0: [...], d1: [...], count: N }
 export const saveFaceDescriptors = async (studentDocId, descriptors) => {
   const ref = doc(db, 'students', studentDocId);
+  const descriptorMap = {};
+  descriptors.forEach((d, i) => { descriptorMap[`d${i}`] = Array.from(d); });
+  descriptorMap.count = descriptors.length;
   await updateDoc(ref, {
-    faceDescriptors: descriptors,      // array of arrays
-    faceDescriptor: descriptors[0],    // keep legacy single field for old code
+    faceDescriptorMap: descriptorMap,
+    faceDescriptor: Array.from(descriptors[0]), // legacy single field
     faceRegistered: true,
   });
 };
@@ -53,13 +57,17 @@ export const loadFaceDescriptors = async (studentDocId) => {
   const snap = await getDoc(doc(db, 'students', studentDocId));
   if (!snap.exists()) return null;
   const data = snap.data();
-  // Support both new multi-descriptor and legacy single-descriptor
-  if (data.faceDescriptors?.length) {
-    return data.faceDescriptors.map(d => new Float32Array(d));
+  // New map format
+  if (data.faceDescriptorMap?.count) {
+    const result = [];
+    for (let i = 0; i < data.faceDescriptorMap.count; i++) {
+      const arr = data.faceDescriptorMap[`d${i}`];
+      if (arr) result.push(new Float32Array(arr));
+    }
+    return result.length ? result : null;
   }
-  if (data.faceDescriptor) {
-    return [new Float32Array(data.faceDescriptor)];
-  }
+  // Legacy single descriptor
+  if (data.faceDescriptor) return [new Float32Array(data.faceDescriptor)];
   return null;
 };
 
