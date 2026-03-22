@@ -263,7 +263,7 @@ const StudentScanner = () => {
   // ── Render helpers ───────────────────────────────────────────────────────
   const faceStatusColor = { idle: 'gray', loading: 'blue', capturing: 'blue', success: 'green', fail: 'red' }[faceStatus];
 
-  const FaceCamera = ({ title, subtitle, actionLabel, onAction, showAuto }) => (
+  const renderFaceCamera = (title, subtitle, actionLabel, onAction, showAuto) => (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-6">
         <div className="text-center mb-4">
@@ -274,10 +274,9 @@ const StudentScanner = () => {
           <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
         </div>
 
-        {/* Video */}
+        {/* Video — always rendered so videoRef stays stable */}
         <div className="relative rounded-xl overflow-hidden bg-black mb-4" style={{ aspectRatio: '4/3' }}>
-          <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-          {/* Face guide overlay */}
+          <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-48 h-56 border-4 border-white/60 rounded-full" />
           </div>
@@ -422,13 +421,13 @@ const StudentScanner = () => {
 
   // ── Step: face registration camera ───────────────────────────────────────
   if (step === 'face-register') {
-    return <FaceCamera
-      title="Register Your Face"
-      subtitle="Position your face in the oval and tap Capture"
-      actionLabel="Capture Face"
-      onAction={handleCaptureFace}
-      showAuto={false}
-    />;
+    return renderFaceCamera(
+      'Register Your Face',
+      'Position your face in the oval and tap Capture',
+      'Capture Face',
+      handleCaptureFace,
+      false
+    );
   }
 
   // ── Step: prompt to verify face ──────────────────────────────────────────
@@ -457,13 +456,13 @@ const StudentScanner = () => {
 
   // ── Step: face verification camera ───────────────────────────────────────
   if (step === 'face-verify') {
-    return <FaceCamera
-      title="Face Verification"
-      subtitle="Look at the camera — verifying automatically"
-      actionLabel={null}
-      onAction={null}
-      showAuto={true}
-    />;
+    return renderFaceCamera(
+      'Face Verification',
+      'Look at the camera — verifying automatically',
+      null,
+      null,
+      true
+    );
   }
 
   // ── Step: QR scan ────────────────────────────────────────────────────────
