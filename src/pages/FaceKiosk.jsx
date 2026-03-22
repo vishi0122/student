@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { loadModels, getFaceDescriptor, compareFaces } from '../services/faceService';
+import { loadModels, getFaceDescriptor, compareFacesMulti } from '../services/faceService';
 import attendanceStore from '../services/attendanceStore';
 import { createAttendanceSession } from '../services/qrService';
 import { useAuth } from '../context/AuthContext';
@@ -74,7 +74,7 @@ const FaceKiosk = () => {
     setStatusMsg('Loading student face data...');
     const loaded = await loadStudentDescriptors();
     if (cancelled) return;
-    const withFace = loaded.filter(s => s.descriptor);
+    const withFace = loaded.filter(s => s.descriptors?.length);
     studentsRef.current = withFace;
     setStudentCount(withFace.length);
 
@@ -115,12 +115,19 @@ const FaceKiosk = () => {
     const snap = await getDocs(collection(db, 'students'));
     return snap.docs.map(d => {
       const data = d.data();
+      // Support both multi-descriptor (new) and single-descriptor (legacy)
+      let descriptors = null;
+      if (data.faceDescriptors?.length) {
+        descriptors = data.faceDescriptors.map(fd => new Float32Array(fd));
+      } else if (data.faceDescriptor) {
+        descriptors = [new Float32Array(data.faceDescriptor)];
+      }
       return {
         docId: d.id,
         uid: data.uid,
         name: data.name,
         section: data.section,
-        descriptor: data.faceDescriptor ? new Float32Array(data.faceDescriptor) : null,
+        descriptors, // array of Float32Array | null
       };
     });
   };
@@ -148,6 +155,9 @@ const FaceKiosk = () => {
   };
 
   const startDetection = () => {
+    // Track consecutive matches per UID to reduce false positives
+    const consecutiveHits = {};
+
     intervalRef.current = setInterval(async () => {
       if (!videoRef.current || !videoRef.current.srcObject) return;
       const descriptor = await getFaceDescriptor(videoRef.current);
@@ -156,15 +166,24 @@ const FaceKiosk = () => {
       let bestMatch = null;
       let bestDist = Infinity;
       for (const student of studentsRef.current) {
-        if (!student.descriptor) continue;
-        const { distance } = compareFaces(descriptor, student.descriptor, THRESHOLD);
+        if (!student.descriptors?.length) continue;
+        const { distance } = compareFacesMulti(descriptor, student.descriptors, THRESHOLD);
         if (distance < bestDist) { bestDist = distance; bestMatch = student; }
       }
 
       if (bestMatch && bestDist < THRESHOLD) {
         if (markedRef.current.has(bestMatch.uid)) return;
-        markedRef.current.add(bestMatch.uid);
 
+        // Require 2 consecutive matches before marking
+        consecutiveHits[bestMatch.uid] = (consecutiveHits[bestMatch.uid] || 0) + 1;
+        // Reset all others
+        for (const uid of Object.keys(consecutiveHits)) {
+          if (uid !== bestMatch.uid) consecutiveHits[uid] = 0;
+        }
+
+        if (consecutiveHits[bestMatch.uid] < 2) return; // wait for next tick
+
+        markedRef.current.add(bestMatch.uid);
         const s = sessionRef.current;
         await attendanceStore.markAttendance(s.id || s.sessionId, {
           studentId: bestMatch.docId,
@@ -182,6 +201,9 @@ const FaceKiosk = () => {
         setRecentScans(prev => [entry, ...prev]);
         setWelcome({ name: bestMatch.name, uid: bestMatch.uid });
         setTimeout(() => setWelcome(null), WELCOME_DURATION);
+      } else if (bestMatch) {
+        // No match this tick — reset consecutive counter
+        consecutiveHits[bestMatch.uid] = 0;
       }
     }, SCAN_INTERVAL);
   };
