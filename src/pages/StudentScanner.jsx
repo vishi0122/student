@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { QrCode, CheckCircle, XCircle, Camera, AlertCircle, User, StopCircle } from 'lucide-react';
+import { QrCode, CheckCircle, XCircle, Camera, AlertCircle, User, StopCircle, Loader, CheckCircle2 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -14,6 +14,12 @@ const StudentScanner = () => {
   const [cameraError, setCameraError] = useState(null);
   const [studentUID, setStudentUID] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // UID lookup state
+  const [lookupResult, setLookupResult] = useState(null); // { found: bool, student: obj|null }
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const lookupTimer = useRef(null);
+
   const html5QrcodeRef = useRef(null);
   const scannerDivId = 'qr-reader';
 
@@ -21,6 +27,29 @@ const StudentScanner = () => {
   useEffect(() => {
     return () => { stopScanner(); };
   }, []);
+
+  // Live UID lookup as user types (debounced 600ms)
+  useEffect(() => {
+    const uid = studentUID.trim().toUpperCase();
+    setLookupResult(null);
+
+    if (uid.length < 6) return; // don't query until something meaningful is typed
+
+    clearTimeout(lookupTimer.current);
+    setLookupLoading(true);
+
+    lookupTimer.current = setTimeout(async () => {
+      try {
+        const student = await getStudentByUID(uid);
+        setLookupResult({ found: !!student, student: student || null });
+      } catch {
+        setLookupResult({ found: false, student: null });
+      }
+      setLookupLoading(false);
+    }, 600);
+
+    return () => clearTimeout(lookupTimer.current);
+  }, [studentUID]);
 
   const stopScanner = async () => {
     if (html5QrcodeRef.current) {
@@ -115,36 +144,18 @@ const StudentScanner = () => {
       alert('Please enter your UID');
       return;
     }
-    // Look up student in Firestore by UID
-    try {
-      const student = await getStudentByUID(studentUID.trim());
-      if (student) {
-        setStudentInfo({
-          studentId: student.id || studentUID,
-          studentName: student.name,
-          studentUID: student.uid,
-          section: student.section,
-        });
-      } else {
-        // Fallback: allow entry with entered UID even if not in DB
-        setStudentInfo({
-          studentId: studentUID,
-          studentName: `Student (${studentUID})`,
-          studentUID: studentUID.trim(),
-          section: 'Unknown',
-        });
-      }
-      setIsLoggedIn(true);
-    } catch {
-      // If Firestore lookup fails (e.g. offline), still allow entry
-      setStudentInfo({
-        studentId: studentUID,
-        studentName: `Student (${studentUID})`,
-        studentUID: studentUID.trim(),
-        section: 'Unknown',
-      });
-      setIsLoggedIn(true);
+    if (!lookupResult?.found) {
+      alert('UID not found. Please check your UID and try again.');
+      return;
     }
+    const student = lookupResult.student;
+    setStudentInfo({
+      studentId: student.id || student.uid,
+      studentName: student.name,
+      studentUID: student.uid,
+      section: student.section,
+    });
+    setIsLoggedIn(true);
   };
 
   const handleLogout = async () => {
@@ -158,6 +169,9 @@ const StudentScanner = () => {
 
   // Student Login Screen
   if (!isLoggedIn) {
+    const uid = studentUID.trim().toUpperCase();
+    const canContinue = lookupResult?.found === true;
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md p-8">
@@ -172,17 +186,58 @@ const StudentScanner = () => {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Student UID</label>
-              <input
-                type="text"
-                value={studentUID}
-                onChange={(e) => setStudentUID(e.target.value)}
-                placeholder="e.g., 24BCS10001"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]"
-                onKeyPress={(e) => e.key === 'Enter' && handleStudentLogin()}
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={studentUID}
+                  onChange={(e) => setStudentUID(e.target.value.toUpperCase())}
+                  placeholder="e.g., 24BCS10047"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors pr-10 ${
+                    lookupResult?.found === true
+                      ? 'border-emerald-400 focus:ring-emerald-200 bg-emerald-50'
+                      : lookupResult?.found === false
+                      ? 'border-red-400 focus:ring-red-200 bg-red-50'
+                      : 'border-gray-300 focus:ring-[#1E3A8A]/20 focus:border-[#1E3A8A]'
+                  }`}
+                  onKeyDown={(e) => e.key === 'Enter' && canContinue && handleStudentLogin()}
+                />
+                {/* Status icon inside input */}
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {lookupLoading && <Loader size={18} className="animate-spin text-gray-400" />}
+                  {!lookupLoading && lookupResult?.found === true && <CheckCircle2 size={18} className="text-emerald-500" />}
+                  {!lookupLoading && lookupResult?.found === false && <XCircle size={18} className="text-red-500" />}
+                </div>
+              </div>
             </div>
-            <Button onClick={handleStudentLogin} className="w-full py-3">
-              Continue to Scanner
+
+            {/* Live verification card */}
+            {lookupResult?.found === true && lookupResult.student && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-4 animate-fadeIn">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                  {lookupResult.student.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-emerald-900 truncate">{lookupResult.student.name}</p>
+                  <p className="text-sm text-emerald-700">{lookupResult.student.uid}</p>
+                  <p className="text-xs text-emerald-600 mt-0.5">Section {lookupResult.student.section} • {lookupResult.student.year}</p>
+                </div>
+                <CheckCircle2 size={22} className="text-emerald-500 flex-shrink-0" />
+              </div>
+            )}
+
+            {lookupResult?.found === false && uid.length >= 6 && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                <XCircle size={16} className="text-red-500 flex-shrink-0" />
+                <p className="text-sm text-red-700">UID not found. Check your university ID card.</p>
+              </div>
+            )}
+
+            <Button
+              onClick={handleStudentLogin}
+              className="w-full py-3"
+              disabled={!canContinue || lookupLoading}
+            >
+              {lookupLoading ? 'Verifying...' : canContinue ? `Continue as ${lookupResult.student.name.split(' ')[0]}` : 'Enter your UID above'}
             </Button>
           </div>
 
@@ -190,7 +245,7 @@ const StudentScanner = () => {
             <div className="flex gap-2">
               <AlertCircle size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-900">
-                <p className="font-medium mb-1">Quick Test UIDs:</p>
+                <p className="font-medium mb-1">Section 605A UIDs:</p>
                 <ul className="text-blue-800 space-y-1">
                   <li>• 24BCS10047 (Rohit Raj)</li>
                   <li>• 24BCS10096 (Diya Sharma)</li>
