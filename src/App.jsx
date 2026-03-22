@@ -14,6 +14,7 @@ import LiveSession from './pages/LiveSession';
 import Reports from './pages/Reports';
 import SessionDetail from './pages/SessionDetail';
 import StudentScanner from './pages/StudentScanner';
+import FaceKiosk from './pages/FaceKiosk';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -70,6 +71,7 @@ function App() {
           <Route path="/live-session" element={<ProtectedRoute><LiveSession /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           <Route path="/session/:sessionId" element={<ProtectedRoute><SessionDetail /></ProtectedRoute>} />
+          <Route path="/kiosk" element={<ProtectedRoute><FaceKiosk /></ProtectedRoute>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

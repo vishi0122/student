@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Users, CheckCircle2, Clock, MapPin, BookOpen, RefreshCw } from 'lucide-react';
+import { Users, CheckCircle2, Clock, MapPin, BookOpen, RefreshCw, ScanFace } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/ui/Card';
@@ -147,6 +147,14 @@ const LiveSession = () => {
               onClick={handleEndSession}
             >
               End Session
+            </Button>
+            <Button
+              variant="outline"
+              className="text-[#1E3A8A] hover:bg-blue-50"
+              onClick={() => navigate('/kiosk')}
+              icon={ScanFace}
+            >
+              Face Kiosk
             </Button>
           </div>
         </div>
