@@ -12,6 +12,7 @@ import Timetable from './pages/Timetable';
 import Attendance from './pages/Attendance';
 import LiveSession from './pages/LiveSession';
 import Reports from './pages/Reports';
+import SessionDetail from './pages/SessionDetail';
 import StudentScanner from './pages/StudentScanner';
 
 // Protected Route Component
@@ -68,6 +69,7 @@ function App() {
           <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
           <Route path="/live-session" element={<ProtectedRoute><LiveSession /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+          <Route path="/session/:sessionId" element={<ProtectedRoute><SessionDetail /></ProtectedRoute>} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

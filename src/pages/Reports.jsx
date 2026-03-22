@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Download, Filter, BarChart3, FileText, Loader } from 'lucide-react';
+import { Download, FileText, Loader, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/ui/Card';
@@ -8,6 +9,7 @@ import { getSessions } from '../services/dataService';
 
 const Reports = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = user?.role === 'admin';
   const isFaculty = user?.role === 'faculty';
   const [sessions, setSessions] = useState([]);
@@ -97,7 +99,8 @@ const Reports = () => {
                   const present = session.attendees?.length || 0;
                   const pct = Math.round((present / 45) * 100);
                   return (
-                    <div key={i} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                    <div key={i} onClick={() => navigate(`/session/${session.sessionId || session.id}`)}
+                      className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer group">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-lg bg-blue-50 text-[#1E3A8A] flex items-center justify-center">
                           <FileText size={20} />
@@ -117,6 +120,7 @@ const Reports = () => {
                         }`}>
                           {session.status}
                         </span>
+                        <ChevronRight size={16} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
                       </div>
                     </div>
                   );
