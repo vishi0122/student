@@ -61,17 +61,67 @@ const StudentScanner = () => {
     return () => clearTimeout(lookupTimer.current);
   }, [studentUID]);
 
+  // Start face camera AFTER the step renders (so videoRef is in DOM)
+  useEffect(() => {
+    if (step === 'face-register') {
+      setFaceStatus('loading');
+      setFaceMessage('Starting camera...');
+      // Small delay to ensure video element is mounted
+      const t = setTimeout(async () => {
+        await startFaceCamera();
+        setFaceStatus('capturing');
+        setFaceMessage('Look straight at the camera. Hold still...');
+      }, 100);
+      return () => clearTimeout(t);
+    }
+    if (step === 'face-verify') {
+      setFaceStatus('loading');
+      setFaceMessage('Loading stored face data...');
+      const t = setTimeout(async () => {
+        const stored = await loadFaceDescriptor(studentInfo.docId);
+        if (!stored) {
+          setFaceStatus('fail');
+          setFaceMessage('No face registered. Please register first.');
+          return;
+        }
+        await startFaceCamera();
+        setFaceStatus('capturing');
+        setFaceMessage('Look at the camera to verify your identity...');
+        faceIntervalRef.current = setInterval(async () => {
+          if (!videoRef.current) return;
+          const live = await getFaceDescriptor(videoRef.current);
+          if (!live) return;
+          const result = compareFaces(live, stored);
+          if (result.match) {
+            clearInterval(faceIntervalRef.current);
+            stopFaceCamera();
+            setFaceStatus('success');
+            setFaceMessage(`Identity verified! (distance: ${result.distance})`);
+            setTimeout(() => setStep('scan'), 1200);
+          } else {
+            setFaceMessage(`Verifying... (distance: ${result.distance} — need < 0.5)`);
+          }
+        }, 1500);
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [step]);
+
   // ── Face camera helpers ──────────────────────────────────────────────────
   const startFaceCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+      });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        videoRef.current.onloadedmetadata = () => videoRef.current.play();
       }
-    } catch {
-      setCameraError('Camera permission denied.');
+    } catch (err) {
+      console.error('Face camera error:', err);
+      setFaceStatus('fail');
+      setFaceMessage('Camera permission denied. Please allow camera access.');
     }
   };
 
@@ -84,13 +134,10 @@ const StudentScanner = () => {
   };
 
   // ── Face Registration ────────────────────────────────────────────────────
-  const handleStartRegister = async () => {
+  const handleStartRegister = () => {
+    setFaceStatus('idle');
+    setFaceMessage('');
     setStep('face-register');
-    setFaceStatus('loading');
-    setFaceMessage('Starting camera...');
-    await startFaceCamera();
-    setFaceStatus('capturing');
-    setFaceMessage('Look straight at the camera. Hold still...');
   };
 
   const handleCaptureFace = async () => {
@@ -118,36 +165,10 @@ const StudentScanner = () => {
   };
 
   // ── Face Verification ────────────────────────────────────────────────────
-  const handleStartVerify = async () => {
+  const handleStartVerify = () => {
+    setFaceStatus('idle');
+    setFaceMessage('');
     setStep('face-verify');
-    setFaceStatus('loading');
-    setFaceMessage('Loading stored face data...');
-    const stored = await loadFaceDescriptor(studentInfo.docId);
-    if (!stored) {
-      setFaceStatus('fail');
-      setFaceMessage('No face registered. Please register first.');
-      return;
-    }
-    await startFaceCamera();
-    setFaceStatus('capturing');
-    setFaceMessage('Look at the camera to verify your identity...');
-
-    // Auto-verify every 1.5s
-    faceIntervalRef.current = setInterval(async () => {
-      if (!videoRef.current) return;
-      const live = await getFaceDescriptor(videoRef.current);
-      if (!live) return;
-      const result = compareFaces(live, stored);
-      if (result.match) {
-        clearInterval(faceIntervalRef.current);
-        stopFaceCamera();
-        setFaceStatus('success');
-        setFaceMessage(`Identity verified! (distance: ${result.distance})`);
-        setTimeout(() => setStep('scan'), 1200);
-      } else {
-        setFaceMessage(`Verifying... (distance: ${result.distance} — need < 0.5)`);
-      }
-    }, 1500);
   };
 
   // ── UID confirm ──────────────────────────────────────────────────────────
