@@ -24,10 +24,29 @@ class AttendanceStore {
   }
 
   // Mark attendance
-  markAttendance(sessionId, studentData) {
-    const session = this.sessions.get(sessionId);
+  markAttendance(sessionId, studentData, sessionMeta = null) {
+    let session = this.sessions.get(sessionId);
+
+    // If session doesn't exist locally (e.g. student on a different device),
+    // auto-create it from the QR code metadata so attendance can still be recorded.
     if (!session) {
-      throw new Error('Session not found');
+      if (sessionMeta) {
+        session = {
+          sessionId,
+          subject: sessionMeta.subject || 'Unknown',
+          section: sessionMeta.section || 'Unknown',
+          teacher: sessionMeta.teacher || 'Unknown',
+          date: sessionMeta.date || new Date().toISOString().split('T')[0],
+          time: sessionMeta.time || '',
+          room: sessionMeta.room || 'N/A',
+          attendees: [],
+          createdAt: Date.now(),
+          status: 'active'
+        };
+        this.sessions.set(sessionId, session);
+      } else {
+        return { success: false, error: 'Session not found' };
+      }
     }
 
     // Check if student already marked attendance

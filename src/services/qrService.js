@@ -114,12 +114,13 @@ export const createAttendanceSession = (sessionInfo) => {
  * @param {Object} studentData - Student information
  * @returns {Object} Attendance record
  */
-export const markAttendance = async (sessionId, studentData) => {
+export const markAttendance = async (sessionId, studentData, sessionMeta = null) => {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 500));
   
-  // Mark attendance in store
-  const result = attendanceStore.markAttendance(sessionId, studentData);
+  // Mark attendance in store, passing full QR data as session meta
+  // so student devices can record attendance even without the teacher's session in memory
+  const result = attendanceStore.markAttendance(sessionId, studentData, sessionMeta);
   
   if (!result.success) {
     throw new Error(result.error);
