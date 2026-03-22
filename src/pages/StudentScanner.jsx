@@ -88,7 +88,9 @@ const StudentScanner = () => {
       const validation = validateQRData(decodedText);
 
       if (validation.valid) {
+        console.log('[Scanner] Valid QR, writing to sessionId:', validation.data.sessionId);
         const attendance = await markAttendance(validation.data.sessionId, studentInfo, validation.data);
+        console.log('[Scanner] Attendance written:', attendance);
         setScanResult({
           success: true,
           message: 'Attendance marked successfully!',

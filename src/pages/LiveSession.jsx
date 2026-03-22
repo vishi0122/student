@@ -50,6 +50,7 @@ const LiveSession = () => {
 
       // Subscribe to real-time updates from Firestore
       unsubscribe = subscribeToSession(newSession.sessionId, (attendanceRecord) => {
+        console.log('[LiveSession] New scan received:', attendanceRecord);
         setRecentScans(prev => [{
           id: attendanceRecord.id,
           name: attendanceRecord.studentName,
@@ -58,6 +59,8 @@ const LiveSession = () => {
         }, ...prev].slice(0, 10));
         setScannedCount(prev => prev + 1);
       });
+
+      console.log('[LiveSession] Session created, listening on:', newSession.sessionId);
     };
 
     initSession();

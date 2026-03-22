@@ -92,19 +92,38 @@ class AttendanceStore {
   // Real-time listener — fires on every new scan from any device
   subscribe(sessionId, callback) {
     const sessionRef = doc(db, 'sessions', sessionId);
-    let previousCount = 0;
+    let knownIds = new Set();
+    let initialized = false;
 
     const unsubscribe = onSnapshot(sessionRef, (snap) => {
-      if (!snap.exists()) return;
+      if (!snap.exists()) {
+        console.log('[AttendanceStore] Session doc does not exist yet:', sessionId);
+        return;
+      }
+
       const data = snap.data();
       const attendees = data.attendees || [];
 
-      // Only fire callback for newly added records
-      if (attendees.length > previousCount) {
-        const newRecords = attendees.slice(previousCount);
-        newRecords.forEach((record) => callback(record));
-        previousCount = attendees.length;
+      console.log('[AttendanceStore] Snapshot received, attendees count:', attendees.length);
+
+      if (!initialized) {
+        // First snapshot — seed known IDs so we don't fire for existing records
+        attendees.forEach((a) => knownIds.add(a.id));
+        initialized = true;
+        console.log('[AttendanceStore] Initialized with', knownIds.size, 'existing records');
+        return;
       }
+
+      // Fire callback only for genuinely new records
+      attendees.forEach((record) => {
+        if (!knownIds.has(record.id)) {
+          knownIds.add(record.id);
+          console.log('[AttendanceStore] New attendance record:', record.studentUID);
+          callback(record);
+        }
+      });
+    }, (error) => {
+      console.error('[AttendanceStore] onSnapshot error:', error);
     });
 
     return unsubscribe;
