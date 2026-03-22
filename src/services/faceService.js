@@ -22,7 +22,7 @@ export const loadModels = async () => {
 // Returns Float32Array (128-dim) or null if no face detected
 export const getFaceDescriptor = async (videoEl) => {
   const detection = await faceapi
-    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
     .withFaceLandmarks()
     .withFaceDescriptor();
   return detection ? detection.descriptor : null;
@@ -46,7 +46,26 @@ export const loadFaceDescriptor = async (studentDocId) => {
 
 // Compare live descriptor against stored descriptor
 // Returns { match: bool, distance: number }
-export const compareFaces = (liveDescriptor, storedDescriptor, threshold = 0.5) => {
+export const compareFaces = (liveDescriptor, storedDescriptor, threshold = 0.65) => {
   const distance = faceapi.euclideanDistance(liveDescriptor, storedDescriptor);
   return { match: distance < threshold, distance: parseFloat(distance.toFixed(3)) };
+};
+
+// Capture multiple descriptors and return the averaged one (more stable)
+export const getAveragedFaceDescriptor = async (videoEl, samples = 5) => {
+  const descriptors = [];
+  for (let i = 0; i < samples; i++) {
+    const d = await getFaceDescriptor(videoEl);
+    if (d) descriptors.push(d);
+    await new Promise(r => setTimeout(r, 300)); // small gap between samples
+  }
+  if (descriptors.length === 0) return null;
+
+  // Average all captured descriptors element-wise
+  const avg = new Float32Array(128);
+  for (const desc of descriptors) {
+    for (let j = 0; j < 128; j++) avg[j] += desc[j];
+  }
+  for (let j = 0; j < 128; j++) avg[j] /= descriptors.length;
+  return { descriptor: avg, sampleCount: descriptors.length };
 };

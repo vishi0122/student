@@ -9,7 +9,7 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { validateQRData, markAttendance } from '../services/qrService';
 import { getStudentByUID } from '../services/dataService';
-import { loadModels, getFaceDescriptor, saveFaceDescriptor, loadFaceDescriptor, compareFaces } from '../services/faceService';
+import { loadModels, getFaceDescriptor, saveFaceDescriptor, loadFaceDescriptor, compareFaces, getAveragedFaceDescriptor } from '../services/faceService';
 
 // Steps: 'uid' → 'face-register' | 'face-verify' → 'scan'
 const StudentScanner = () => {
@@ -89,9 +89,24 @@ const StudentScanner = () => {
         setFaceMessage('Look at the camera to verify your identity...');
         faceIntervalRef.current = setInterval(async () => {
           if (!videoRef.current) return;
-          const live = await getFaceDescriptor(videoRef.current);
-          if (!live) return;
-          const result = compareFaces(live, stored);
+          // Average 3 live samples for stable comparison
+          setFaceMessage('Scanning face...');
+          const samples = [];
+          for (let i = 0; i < 3; i++) {
+            const d = await getFaceDescriptor(videoRef.current);
+            if (d) samples.push(d);
+            await new Promise(r => setTimeout(r, 200));
+          }
+          if (samples.length === 0) {
+            setFaceMessage('No face detected — look directly at the camera.');
+            return;
+          }
+          // Average samples
+          const avg = new Float32Array(128);
+          for (const s of samples) for (let j = 0; j < 128; j++) avg[j] += s[j];
+          for (let j = 0; j < 128; j++) avg[j] /= samples.length;
+
+          const result = compareFaces(avg, stored);
           if (result.match) {
             clearInterval(faceIntervalRef.current);
             stopFaceCamera();
@@ -99,9 +114,9 @@ const StudentScanner = () => {
             setFaceMessage(`Identity verified! (distance: ${result.distance})`);
             setTimeout(() => setStep('scan'), 1200);
           } else {
-            setFaceMessage(`Verifying... (distance: ${result.distance} — need < 0.5)`);
+            setFaceMessage(`Verifying... distance: ${result.distance} (need < 0.6) — keep looking at camera`);
           }
-        }, 1500);
+        }, 2000);
       }, 100);
       return () => clearTimeout(t);
     }
@@ -143,19 +158,33 @@ const StudentScanner = () => {
   const handleCaptureFace = async () => {
     if (!videoRef.current || faceStatus === 'loading') return;
     setFaceStatus('loading');
-    setFaceMessage('Detecting face...');
+    const totalSamples = 5;
     try {
-      const descriptor = await getFaceDescriptor(videoRef.current);
-      if (!descriptor) {
+      // Capture multiple samples for a stable descriptor
+      const descriptors = [];
+      for (let i = 0; i < totalSamples; i++) {
+        setFaceMessage(`Capturing sample ${i + 1}/${totalSamples} — hold still...`);
+        const d = await getFaceDescriptor(videoRef.current);
+        if (d) descriptors.push(d);
+        await new Promise(r => setTimeout(r, 350));
+      }
+      if (descriptors.length < 2) {
         setFaceStatus('fail');
-        setFaceMessage('No face detected. Make sure your face is well-lit and centered.');
+        setFaceMessage('Could not detect face clearly. Ensure good lighting and face the camera.');
         return;
       }
-      setFaceMessage('Saving face data...');
-      await saveFaceDescriptor(studentInfo.docId, descriptor);
+      setFaceMessage(`Got ${descriptors.length} samples — saving...`);
+      // Average descriptors
+      const avg = new Float32Array(128);
+      for (const desc of descriptors) {
+        for (let j = 0; j < 128; j++) avg[j] += desc[j];
+      }
+      for (let j = 0; j < 128; j++) avg[j] /= descriptors.length;
+
+      await saveFaceDescriptor(studentInfo.docId, avg);
       stopFaceCamera();
       setFaceStatus('success');
-      setFaceMessage('Face registered! You can now scan QR codes.');
+      setFaceMessage(`Face registered with ${descriptors.length} samples. You can now scan QR codes.`);
       setTimeout(() => setStep('scan'), 1500);
     } catch (err) {
       setFaceStatus('fail');
