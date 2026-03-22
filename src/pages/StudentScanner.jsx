@@ -67,13 +67,14 @@ const StudentScanner = () => {
     if (step === 'face-register') {
       setFaceStatus('loading');
       setFaceMessage('Starting camera...');
-      // Small delay to ensure video element is mounted
       const t = setTimeout(async () => {
+        // Always stop any existing stream first
+        stopFaceCamera();
         await startFaceCamera();
         setFaceStatus('capturing');
         setFaceMessage('Look straight at the camera. Hold still...');
-      }, 100);
-      return () => clearTimeout(t);
+      }, 150);
+      return () => { clearTimeout(t); stopFaceCamera(); };
     }
     if (step === 'face-verify') {
       setFaceStatus('loading');
@@ -85,6 +86,7 @@ const StudentScanner = () => {
           setFaceMessage('No face registered. Please register first.');
           return;
         }
+        stopFaceCamera();
         await startFaceCamera();
         setFaceStatus('capturing');
         setFaceMessage('Look at the camera to verify your identity...');
@@ -106,8 +108,8 @@ const StudentScanner = () => {
             setFaceMessage(`Verifying... best distance: ${result.distance} (need < 0.5)`);
           }
         }, 1500);
-      }, 100);
-      return () => clearTimeout(t);
+      }, 150);
+      return () => { clearTimeout(t); stopFaceCamera(); };
     }
   }, [step]);
 
@@ -120,7 +122,16 @@ const StudentScanner = () => {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => videoRef.current.play();
+        // Wait for video to actually be playing
+        await new Promise((resolve) => {
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current.play().then(resolve).catch(resolve);
+          };
+          // Fallback if already loaded
+          if (videoRef.current.readyState >= 2) {
+            videoRef.current.play().then(resolve).catch(resolve);
+          }
+        });
       }
     } catch (err) {
       console.error('Face camera error:', err);
@@ -202,8 +213,8 @@ const StudentScanner = () => {
   };
 
   const handleLogout = async () => {
-    await stopScanner();
     stopFaceCamera();
+    await stopScanner();
     setStep('uid');
     setStudentInfo(null);
     setScanResult(null);
