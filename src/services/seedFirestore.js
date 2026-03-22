@@ -29,24 +29,42 @@ const userProfiles = [
 ];
 
 const students = [
-  { id: 'STU001', uid: '24BCS10001', name: 'Aarav Sharma', section: '601A', year: '2nd Year', email: 'aarav.sharma@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU002', uid: '24BCS10002', name: 'Diya Patel', section: '601A', year: '2nd Year', email: 'diya.patel@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU003', uid: '24BCS10003', name: 'Rohan Gupta', section: '601A', year: '2nd Year', email: 'rohan.gupta@cumail.in', faceRegistered: false, institution: 'college' },
-  { id: 'STU004', uid: '24BCS10004', name: 'Ananya Singh', section: '601A', year: '2nd Year', email: 'ananya.singh@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU005', uid: '24BCS10005', name: 'Vikram Verma', section: '601A', year: '2nd Year', email: 'vikram.verma@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU006', uid: '24BCS10006', name: 'Priya Reddy', section: '601A', year: '2nd Year', email: 'priya.reddy@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU007', uid: '24BCS10007', name: 'Arjun Nair', section: '601A', year: '2nd Year', email: 'arjun.nair@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU008', uid: '24BCS10008', name: 'Kavya Iyer', section: '601A', year: '2nd Year', email: 'kavya.iyer@cumail.in', faceRegistered: false, institution: 'college' },
-  { id: 'STU009', uid: '24BCS10009', name: 'Siddharth Joshi', section: '601A', year: '2nd Year', email: 'siddharth.joshi@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU010', uid: '24BCS10010', name: 'Meera Kapoor', section: '601A', year: '2nd Year', email: 'meera.kapoor@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU011', uid: '24BCS10011', name: 'Karan Malhotra', section: '601B', year: '2nd Year', email: 'karan.malhotra@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU012', uid: '24BCS10012', name: 'Sneha Desai', section: '601B', year: '2nd Year', email: 'sneha.desai@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU013', uid: '24BCS10013', name: 'Rahul Kumar', section: '601B', year: '2nd Year', email: 'rahul.kumar@cumail.in', faceRegistered: false, institution: 'college' },
-  { id: 'STU014', uid: '24BCS10014', name: 'Ishita Sharma', section: '601B', year: '2nd Year', email: 'ishita.sharma@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU015', uid: '24BCS10015', name: 'Aditya Rao', section: '601B', year: '2nd Year', email: 'aditya.rao@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU016', uid: '24BCS10016', name: 'Neha Agarwal', section: '602', year: '2nd Year', email: 'neha.agarwal@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU017', uid: '24BCS10017', name: 'Varun Mehta', section: '602', year: '2nd Year', email: 'varun.mehta@cumail.in', faceRegistered: true, institution: 'college' },
-  { id: 'STU018', uid: '24BCS10018', name: 'Pooja Bansal', section: '602', year: '2nd Year', email: 'pooja.bansal@cumail.in', faceRegistered: true, institution: 'college' },
+  // ── Section 605A (real data) ──────────────────────────────────────────────
+  { id: 'STU605A001', uid: '24BCS10047', name: 'Rohit Raj',            section: '605A', year: '2nd Year', email: '24bcs10047@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A002', uid: '24BCS10057', name: 'Himanshu Kumar',       section: '605A', year: '2nd Year', email: '24bcs10057@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A003', uid: '24BCS10096', name: 'Diya Sharma',          section: '605A', year: '2nd Year', email: '24bcs10096@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A004', uid: '24BCS10244', name: 'Aashu Babu',           section: '605A', year: '2nd Year', email: '24bcs10244@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A005', uid: '24BCS10247', name: 'Karan Kumar',          section: '605A', year: '2nd Year', email: '24bcs10247@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A006', uid: '24BCS10351', name: 'Prakhar Sisodiya',     section: '605A', year: '2nd Year', email: '24bcs10351@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A007', uid: '24BCS10460', name: 'Harshpreet Kaur',      section: '605A', year: '2nd Year', email: '24bcs10460@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A008', uid: '24BCS10476', name: 'Sahilpreet Singh',     section: '605A', year: '2nd Year', email: '24bcs10476@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A009', uid: '24BCS10558', name: 'Naveen',               section: '605A', year: '2nd Year', email: '24bcs10558@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A010', uid: '24BCS10567', name: 'Shreya Kumari',        section: '605A', year: '2nd Year', email: '24bcs10567@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A011', uid: '24BCS10614', name: 'Bhumika',              section: '605A', year: '2nd Year', email: '24bcs10614@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A012', uid: '24BCS10668', name: 'Vishal Kumar',         section: '605A', year: '2nd Year', email: '24bcs10668@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A013', uid: '24BCS10692', name: 'Shagun Jangra',        section: '605A', year: '2nd Year', email: '24bcs10692@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A014', uid: '24BCS10841', name: 'Dutimaya Pradhan',     section: '605A', year: '2nd Year', email: '24bcs10841@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A015', uid: '24BCS10938', name: 'Shchi Sharda',         section: '605A', year: '2nd Year', email: '24bcs10938@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A016', uid: '24BCS10976', name: 'Rishav Kumar',         section: '605A', year: '2nd Year', email: '24bcs10976@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A017', uid: '24BCS10977', name: 'Shivam Bind',          section: '605A', year: '2nd Year', email: '24bcs10977@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A018', uid: '24BCS11023', name: 'Priyanshu Bindal',     section: '605A', year: '2nd Year', email: '24bcs11023@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A019', uid: '24BCS11042', name: 'Shreya',               section: '605A', year: '2nd Year', email: '24bcs11042@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A020', uid: '24BCS11164', name: 'Garima Sharma',        section: '605A', year: '2nd Year', email: '24bcs11164@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A021', uid: '24BCS11288', name: 'Samar Kumar',          section: '605A', year: '2nd Year', email: '24bcs11288@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A022', uid: '24BCS11317', name: 'Lucky',                section: '605A', year: '2nd Year', email: '24bcs11317@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A023', uid: '24BCS11462', name: 'Muskaan Rajora',       section: '605A', year: '2nd Year', email: '24bcs11462@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A024', uid: '24BCS11651', name: 'Ankit Kumar',          section: '605A', year: '2nd Year', email: '24bcs11651@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A025', uid: '24BCS11679', name: 'Saatvik Sawarn',       section: '605A', year: '2nd Year', email: '24bcs11679@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A026', uid: '24BCS11844', name: 'Paras',                section: '605A', year: '2nd Year', email: '24bcs11844@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A027', uid: '24BCS11875', name: 'Shivam Jaiswal',       section: '605A', year: '2nd Year', email: '24bcs11875@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A028', uid: '24BCS11888', name: 'Yash Kumar Sisodia',   section: '605A', year: '2nd Year', email: '24bcs11888@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A029', uid: '24BCS11918', name: 'Akshata Singh',        section: '605A', year: '2nd Year', email: '24bcs11918@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A030', uid: '24BCS12062', name: 'Love Bhardwaj',        section: '605A', year: '2nd Year', email: '24bcs12062@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A031', uid: '24BCS12269', name: 'Divyanshu Kumar',      section: '605A', year: '2nd Year', email: '24bcs12269@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A032', uid: '24BCS12503', name: 'Aditya Raj',           section: '605A', year: '2nd Year', email: '24bcs12503@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A033', uid: '24BCS12794', name: 'Aarav Sharma',         section: '605A', year: '2nd Year', email: '24bcs12794@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A034', uid: '24BCS12868', name: 'Rudra Pratap Singh',   section: '605A', year: '2nd Year', email: '24bcs12868@cumail.in', faceRegistered: false, institution: 'college' },
+  { id: 'STU605A035', uid: '24BCS12978', name: 'Kumari Riya',          section: '605A', year: '2nd Year', email: '24bcs12978@cumail.in', faceRegistered: false, institution: 'college' },
 ];
 
 const subjects = [
@@ -92,6 +110,13 @@ const seedCollection = async (collectionName, items) => {
   items.forEach(item => batch.set(doc(db, collectionName, item.id), item));
   await batch.commit();
   console.log(`✅ Seeded ${items.length} docs into '${collectionName}'`);
+};
+
+// Re-seed only students (safe to run anytime — overwrites existing docs by ID)
+export const reseedStudents = async () => {
+  console.log('🌱 Re-seeding students...');
+  await seedCollection('students', students);
+  console.log('✅ Students updated!');
 };
 
 export const seedAll = async () => {

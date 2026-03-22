@@ -4,7 +4,7 @@ import { BrainCircuit, AlertCircle, Database } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { seedAll } from '../services/seedFirestore';
+import { seedAll, reseedStudents } from '../services/seedFirestore';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,6 +15,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
 
   const [seedStatus, setSeedStatus] = useState('');
+  const [studentSeedStatus, setStudentSeedStatus] = useState('');
 
   const handleSeed = async () => {
     setSeedStatus('seeding');
@@ -23,6 +24,17 @@ const Login = () => {
       setSeedStatus('done');
     } catch (e) {
       setSeedStatus('error');
+      console.error(e);
+    }
+  };
+
+  const handleReseedStudents = async () => {
+    setStudentSeedStatus('seeding');
+    try {
+      await reseedStudents();
+      setStudentSeedStatus('done');
+    } catch (e) {
+      setStudentSeedStatus('error');
       console.error(e);
     }
   };
@@ -211,14 +223,24 @@ const Login = () => {
         {/* One-time DB Seed */}
         <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
           <p className="text-xs text-yellow-800 mb-2 font-medium">First time setup — seed the database once</p>
-          <button
-            onClick={handleSeed}
-            disabled={seedStatus === 'seeding' || seedStatus === 'done'}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Database size={16} />
-            {seedStatus === 'seeding' ? 'Seeding...' : seedStatus === 'done' ? '✅ Done! Reload the page' : seedStatus === 'error' ? '❌ Error — check console' : 'Seed Firestore Database'}
-          </button>
+          <div className="flex flex-col gap-2 items-center">
+            <button
+              onClick={handleSeed}
+              disabled={seedStatus === 'seeding' || seedStatus === 'done'}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Database size={16} />
+              {seedStatus === 'seeding' ? 'Seeding...' : seedStatus === 'done' ? '✅ Done! Reload the page' : seedStatus === 'error' ? '❌ Error — check console' : 'Seed Firestore Database'}
+            </button>
+            <button
+              onClick={handleReseedStudents}
+              disabled={studentSeedStatus === 'seeding'}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Database size={16} />
+              {studentSeedStatus === 'seeding' ? 'Updating...' : studentSeedStatus === 'done' ? '✅ Students Updated!' : studentSeedStatus === 'error' ? '❌ Error — check console' : 'Update Students (605A)'}
+            </button>
+          </div>
           {seedStatus === 'done' && (
             <p className="text-xs text-green-700 mt-2">All data uploaded. You can remove this button now.</p>
           )}
