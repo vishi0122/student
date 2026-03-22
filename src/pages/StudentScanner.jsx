@@ -5,6 +5,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { validateQRData, markAttendance } from '../services/qrService';
+import { getStudentByUID } from '../services/dataService';
 
 const StudentScanner = () => {
   const [studentInfo, setStudentInfo] = useState(null);
@@ -100,23 +101,50 @@ const StudentScanner = () => {
       } else {
         setScanResult({ success: false, message: validation.error });
       }
-    } catch {
-      setScanResult({ success: false, message: 'Error processing QR code. Please try again.' });
+    } catch (err) {
+      console.error('[Scanner] Error processing QR:', err?.code, err?.message, err);
+      const msg = err?.code === 'permission-denied'
+        ? 'Permission denied — Firestore rules need to allow unauthenticated writes to sessions.'
+        : `Error: ${err?.message || 'Unknown error'}`;
+      setScanResult({ success: false, message: msg });
     }
   };
 
-  const handleStudentLogin = () => {
+  const handleStudentLogin = async () => {
     if (!studentUID.trim()) {
       alert('Please enter your UID');
       return;
     }
-    setStudentInfo({
-      studentId: `STU${studentUID.slice(-3)}`,
-      studentName: `Student ${studentUID.slice(-4)}`,
-      studentUID,
-      section: '601A',
-    });
-    setIsLoggedIn(true);
+    // Look up student in Firestore by UID
+    try {
+      const student = await getStudentByUID(studentUID.trim());
+      if (student) {
+        setStudentInfo({
+          studentId: student.id || studentUID,
+          studentName: student.name,
+          studentUID: student.uid,
+          section: student.section,
+        });
+      } else {
+        // Fallback: allow entry with entered UID even if not in DB
+        setStudentInfo({
+          studentId: studentUID,
+          studentName: `Student (${studentUID})`,
+          studentUID: studentUID.trim(),
+          section: 'Unknown',
+        });
+      }
+      setIsLoggedIn(true);
+    } catch {
+      // If Firestore lookup fails (e.g. offline), still allow entry
+      setStudentInfo({
+        studentId: studentUID,
+        studentName: `Student (${studentUID})`,
+        studentUID: studentUID.trim(),
+        section: 'Unknown',
+      });
+      setIsLoggedIn(true);
+    }
   };
 
   const handleLogout = async () => {
