@@ -32,39 +32,36 @@ const LiveSession = () => {
   const sessionDuration = sessionType === 'lab' ? '100 minutes' : '50 minutes';
 
   useEffect(() => {
-    // Detect current lecture
-    const lecture = detectCurrentLecture('601A');
-    setCurrentLecture(lecture);
-    
-    // Create attendance session
-    const newSession = createAttendanceSession({
-      subject: lecture?.subject || 'Computer Science 101',
-      section: '601A',
-      teacher: user?.name || lecture?.teacher || 'Faculty',
-      room: lecture?.room || '208'
-    });
-    setSession(newSession);
-    
-    // Generate initial QR code
-    updateQRCode(newSession);
+    let unsubscribe = () => {};
 
-    // Subscribe to real-time attendance updates
-    const unsubscribe = subscribeToSession(newSession.sessionId, (attendanceRecord) => {
-      // Add to recent scans
-      setRecentScans(prev => [{
-        id: attendanceRecord.id,
-        name: attendanceRecord.studentName,
-        uid: attendanceRecord.studentUID,
-        time: new Date(attendanceRecord.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-      }, ...prev].slice(0, 10));
-      
-      // Update counter
-      setScannedCount(prev => prev + 1);
-    });
+    const initSession = async () => {
+      const lecture = detectCurrentLecture('601A');
+      setCurrentLecture(lecture);
 
-    return () => {
-      unsubscribe();
+      // createAttendanceSession is now async (writes to Firestore)
+      const newSession = await createAttendanceSession({
+        subject: lecture?.subject || 'Computer Science 101',
+        section: '601A',
+        teacher: user?.name || lecture?.teacher || 'Faculty',
+        room: lecture?.room || '208',
+      });
+      setSession(newSession);
+      updateQRCode(newSession);
+
+      // Subscribe to real-time updates from Firestore
+      unsubscribe = subscribeToSession(newSession.sessionId, (attendanceRecord) => {
+        setRecentScans(prev => [{
+          id: attendanceRecord.id,
+          name: attendanceRecord.studentName,
+          uid: attendanceRecord.studentUID,
+          time: new Date(attendanceRecord.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }, ...prev].slice(0, 10));
+        setScannedCount(prev => prev + 1);
+      });
     };
+
+    initSession();
+    return () => unsubscribe();
   }, [user]);
 
   // Update QR code every 5 seconds

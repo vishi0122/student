@@ -1,67 +1,72 @@
-// In-memory attendance store (simulates real-time database)
-// In production, this would be replaced with Firebase Realtime Database
+// Firestore-backed attendance store
+// Replaces the in-memory store so all devices share the same real-time data
+
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  addDoc,
+  onSnapshot,
+  serverTimestamp,
+  arrayUnion,
+} from 'firebase/firestore';
+import { db } from './firebase';
 
 class AttendanceStore {
-  constructor() {
-    this.sessions = new Map();
-    this.attendanceRecords = new Map();
-    this.listeners = new Map();
-  }
-
-  // Create a new session
-  createSession(sessionData) {
-    this.sessions.set(sessionData.sessionId, {
+  // Create a new session in Firestore
+  async createSession(sessionData) {
+    const sessionRef = doc(db, 'sessions', sessionData.sessionId);
+    await setDoc(sessionRef, {
       ...sessionData,
       attendees: [],
-      createdAt: Date.now()
+      createdAt: serverTimestamp(),
+      status: 'active',
     });
     return sessionData;
   }
 
   // Get session by ID
-  getSession(sessionId) {
-    return this.sessions.get(sessionId);
+  async getSession(sessionId) {
+    const snap = await getDoc(doc(db, 'sessions', sessionId));
+    return snap.exists() ? snap.data() : null;
   }
 
-  // Mark attendance
-  markAttendance(sessionId, studentData, sessionMeta = null) {
-    let session = this.sessions.get(sessionId);
+  // Mark attendance — works from any device
+  async markAttendance(sessionId, studentData, sessionMeta = null) {
+    const sessionRef = doc(db, 'sessions', sessionId);
+    const snap = await getDoc(sessionRef);
 
-    // If session doesn't exist locally (e.g. student on a different device),
-    // auto-create it from the QR code metadata so attendance can still be recorded.
-    if (!session) {
-      if (sessionMeta) {
-        session = {
-          sessionId,
-          subject: sessionMeta.subject || 'Unknown',
-          section: sessionMeta.section || 'Unknown',
-          teacher: sessionMeta.teacher || 'Unknown',
-          date: sessionMeta.date || new Date().toISOString().split('T')[0],
-          time: sessionMeta.time || '',
-          room: sessionMeta.room || 'N/A',
-          attendees: [],
-          createdAt: Date.now(),
-          status: 'active'
-        };
-        this.sessions.set(sessionId, session);
-      } else {
+    // Auto-create session from QR metadata if it doesn't exist yet
+    if (!snap.exists()) {
+      if (!sessionMeta) {
         return { success: false, error: 'Session not found' };
+      }
+      await setDoc(sessionRef, {
+        sessionId,
+        subject: sessionMeta.subject || 'Unknown',
+        section: sessionMeta.section || 'Unknown',
+        teacher: sessionMeta.teacher || 'Unknown',
+        date: sessionMeta.date || new Date().toISOString().split('T')[0],
+        time: sessionMeta.time || '',
+        room: sessionMeta.room || 'N/A',
+        attendees: [],
+        createdAt: serverTimestamp(),
+        status: 'active',
+      });
+    } else {
+      // Check for duplicate attendance
+      const sessionData = snap.data();
+      const already = (sessionData.attendees || []).find(
+        (a) => a.studentUID === studentData.studentUID
+      );
+      if (already) {
+        return { success: false, error: 'Attendance already marked for this session' };
       }
     }
 
-    // Check if student already marked attendance
-    const existingAttendance = session.attendees.find(
-      a => a.studentUID === studentData.studentUID
-    );
-
-    if (existingAttendance) {
-      return {
-        success: false,
-        error: 'Attendance already marked for this session'
-      };
-    }
-
-    const attendanceRecord = {
+    const record = {
       id: `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       sessionId,
       studentId: studentData.studentId,
@@ -70,101 +75,71 @@ class AttendanceStore {
       section: studentData.section,
       timestamp: new Date().toISOString(),
       method: 'QR',
-      status: 'present'
+      status: 'present',
     };
 
-    // Add to session attendees
-    session.attendees.push(attendanceRecord);
+    // Push record into the attendees array on the session doc
+    await updateDoc(sessionRef, {
+      attendees: arrayUnion(record),
+    });
 
-    // Store attendance record
-    this.attendanceRecords.set(attendanceRecord.id, attendanceRecord);
+    // Also write to a sub-collection for easier querying
+    await addDoc(collection(db, 'sessions', sessionId, 'attendanceRecords'), record);
 
-    // Notify listeners
-    this.notifyListeners(sessionId, attendanceRecord);
-
-    return {
-      success: true,
-      data: attendanceRecord
-    };
+    return { success: true, data: record };
   }
 
-  // Get session statistics
-  getSessionStats(sessionId) {
-    const session = this.sessions.get(sessionId);
-    if (!session) {
-      return {
-        totalStudents: 45,
-        present: 0,
-        absent: 45,
-        percentage: 0
-      };
+  // Real-time listener — fires on every new scan from any device
+  subscribe(sessionId, callback) {
+    const sessionRef = doc(db, 'sessions', sessionId);
+    let previousCount = 0;
+
+    const unsubscribe = onSnapshot(sessionRef, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const attendees = data.attendees || [];
+
+      // Only fire callback for newly added records
+      if (attendees.length > previousCount) {
+        const newRecords = attendees.slice(previousCount);
+        newRecords.forEach((record) => callback(record));
+        previousCount = attendees.length;
+      }
+    });
+
+    return unsubscribe;
+  }
+
+  // Get session stats
+  async getSessionStats(sessionId) {
+    const snap = await getDoc(doc(db, 'sessions', sessionId));
+    if (!snap.exists()) {
+      return { totalStudents: 45, present: 0, absent: 45, percentage: 0 };
     }
-
-    const present = session.attendees.length;
-    const totalStudents = 45; // In production, fetch from database
-    const absent = totalStudents - present;
-    const percentage = Math.round((present / totalStudents) * 100);
-
+    const present = (snap.data().attendees || []).length;
+    const totalStudents = 45;
     return {
       totalStudents,
       present,
-      absent,
-      percentage
+      absent: totalStudents - present,
+      percentage: Math.round((present / totalStudents) * 100),
     };
   }
 
-  // Get session attendees
-  getSessionAttendees(sessionId) {
-    const session = this.sessions.get(sessionId);
-    return session ? session.attendees : [];
-  }
-
-  // Subscribe to session updates
-  subscribe(sessionId, callback) {
-    if (!this.listeners.has(sessionId)) {
-      this.listeners.set(sessionId, []);
-    }
-    this.listeners.get(sessionId).push(callback);
-
-    // Return unsubscribe function
-    return () => {
-      const listeners = this.listeners.get(sessionId);
-      if (listeners) {
-        const index = listeners.indexOf(callback);
-        if (index > -1) {
-          listeners.splice(index, 1);
-        }
-      }
-    };
-  }
-
-  // Notify listeners of new attendance
-  notifyListeners(sessionId, attendanceRecord) {
-    const listeners = this.listeners.get(sessionId);
-    if (listeners) {
-      listeners.forEach(callback => callback(attendanceRecord));
-    }
+  // Get attendees list
+  async getSessionAttendees(sessionId) {
+    const snap = await getDoc(doc(db, 'sessions', sessionId));
+    return snap.exists() ? snap.data().attendees || [] : [];
   }
 
   // End session
-  endSession(sessionId) {
-    const session = this.sessions.get(sessionId);
-    if (session) {
-      session.status = 'completed';
-      session.endTime = Date.now();
-    }
-    return session;
-  }
-
-  // Clear all data (for testing)
-  clear() {
-    this.sessions.clear();
-    this.attendanceRecords.clear();
-    this.listeners.clear();
+  async endSession(sessionId) {
+    const sessionRef = doc(db, 'sessions', sessionId);
+    await updateDoc(sessionRef, { status: 'completed', endTime: serverTimestamp() });
+    const snap = await getDoc(sessionRef);
+    return snap.data();
   }
 }
 
-// Create singleton instance
 const attendanceStore = new AttendanceStore();
-
 export default attendanceStore;
