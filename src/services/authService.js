@@ -1,31 +1,45 @@
-// Authentication Service — reads users from Firestore
-import { getUserByEmail } from './dataService';
+// Authentication Service — Firebase Auth + Firestore profile
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
 
+const auth = getAuth();
+
+// Sign in with Firebase Auth, then load profile from Firestore
 export const loginUser = async (email, password) => {
-  const user = await getUserByEmail(email);
-  if (!user || user.password !== password) {
-    throw new Error('Invalid email or password');
-  }
-  const { password: _, ...safeUser } = user;
-  localStorage.setItem('attendai_user', JSON.stringify(safeUser));
-  return safeUser;
+  const credential = await signInWithEmailAndPassword(auth, email, password);
+  const uid = credential.user.uid;
+
+  // Load role/profile from Firestore users collection (keyed by Firebase UID)
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (!snap.exists()) throw new Error('User profile not found. Contact admin.');
+
+  const profile = snap.data();
+  const { password: _, ...safeProfile } = profile;
+  return safeProfile;
 };
 
 export const logoutUser = async () => {
-  localStorage.removeItem('attendai_user');
+  await signOut(auth);
 };
 
-export const getCurrentUser = () => {
-  const str = localStorage.getItem('attendai_user');
-  if (!str) return null;
-  try { return JSON.parse(str); } catch { return null; }
+// Returns the Firebase Auth user (has .uid, .email)
+export const getCurrentFirebaseUser = () => auth.currentUser;
+
+// Subscribe to auth state — used by AuthContext
+export const onAuthChange = (callback) => onAuthStateChanged(auth, callback);
+
+// Load Firestore profile for a given Firebase UID
+export const loadUserProfile = async (uid) => {
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (!snap.exists()) return null;
+  const { password: _, ...safe } = snap.data();
+  return safe;
 };
 
-export const isAuthenticated = () => getCurrentUser() !== null;
-
-export const updateProfile = async (userId, updates) => {
-  const current = getCurrentUser();
-  const updated = { ...current, ...updates };
-  localStorage.setItem('attendai_user', JSON.stringify(updated));
-  return updated;
-};
+export const isAuthenticated = () => auth.currentUser !== null;
