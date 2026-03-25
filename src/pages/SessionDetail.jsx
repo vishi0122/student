@@ -67,6 +67,12 @@ const SessionDetail = () => {
     load();
   }, [sessionId]);
 
+  const escapeCSV = (val) => {
+    const str = String(val ?? '');
+    return str.includes(',') || str.includes('"') || str.includes('\n')
+      ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+
   const handleExportCSV = () => {
     if (!session) return;
     const rows = [['UID', 'Name', 'Section', 'Status', 'Time', 'Method']];
@@ -82,7 +88,7 @@ const SessionDetail = () => {
         s.attendanceRecord?.method || '-',
       ]);
     });
-    const csv = rows.map(r => r.join(',')).join('\n');
+    const csv = rows.map(r => r.map(escapeCSV).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

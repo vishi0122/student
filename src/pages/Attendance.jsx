@@ -16,15 +16,17 @@ const Attendance = () => {
   const [sessionType, setSessionType] = useState('lecture');
   const [subjects, setSubjects] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedSection, setSelectedSection] = useState('605A');
+  const [selectedSection, setSelectedSection] = useState(isCollege ? '605A' : '12A');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const data = isFaculty && user?.name
+      let data = isFaculty && user?.name
         ? await getSubjectsByTeacher(user.name)
         : await getSubjects();
+      // Filter by institution so school users only see school subjects
+      if (user?.instType) data = data.filter(s => !s.institution || s.institution === user.instType);
       setSubjects(data);
       if (data.length > 0) setSelectedSubject(data[0].name);
       setLoading(false);

@@ -68,17 +68,27 @@ const students = [
 ];
 
 const subjects = [
-  { id: 'SUB001', code: 'FS', name: 'Full Stack', credits: 4, type: 'Theory', teacher: 'Juned', sections: ['605A'] },
-  { id: 'SUB002', code: 'CC', name: 'Competitive Coding', credits: 2, type: 'Theory', teacher: 'Shivam', sections: ['605A'] },
-  { id: 'SUB003', code: 'SE', name: 'Software Engineering', credits: 4, type: 'Theory', teacher: 'Dr. Siddharth Arora', sections: ['605A'] },
-  { id: 'SUB004', code: 'OS', name: 'Operating Systems', credits: 4, type: 'Theory', teacher: 'Shabnam', sections: ['605A'] },
-  { id: 'SUB005', code: 'DAA', name: 'Design and Analysis of Algorithms', credits: 4, type: 'Theory', teacher: 'Shaqlain', sections: ['605A'] },
-  { id: 'SUB006', code: 'JAVA', name: 'Java', credits: 4, type: 'Theory', teacher: 'Subham K Mishra', sections: ['605A'] },
-  { id: 'SUB007', code: 'SS', name: 'Soft Skills', credits: 2, type: 'Theory', teacher: 'Komal Dhiman', sections: ['605A'] },
-  { id: 'SUB008', code: 'APT', name: 'Aptitude', credits: 2, type: 'Theory', teacher: 'Ashish Agrawal', sections: ['605A'] },
-  { id: 'SUB009', code: 'ML', name: 'Intro to Machine Learning', credits: 3, type: 'Theory', teacher: 'Neeraj', sections: ['605A'] },
-  { id: 'SUB010', code: 'DAA-LAB', name: 'DAA Lab', credits: 2, type: 'Lab', teacher: 'Shaqlain', sections: ['605A'] },
-  { id: 'SUB011', code: 'JAVA-LAB', name: 'Java Lab', credits: 2, type: 'Lab', teacher: 'Subham K Mishra', sections: ['605A'] },
+  // ── College 605A subjects ─────────────────────────────────────────────────
+  { id: 'SUB001', code: 'FS', name: 'Full Stack', credits: 4, type: 'Theory', teacher: 'Juned', sections: ['605A'], institution: 'college' },
+  { id: 'SUB002', code: 'CC', name: 'Competitive Coding', credits: 2, type: 'Theory', teacher: 'Shivam', sections: ['605A'], institution: 'college' },
+  { id: 'SUB003', code: 'SE', name: 'Software Engineering', credits: 4, type: 'Theory', teacher: 'Dr. Siddharth Arora', sections: ['605A'], institution: 'college' },
+  { id: 'SUB004', code: 'OS', name: 'Operating Systems', credits: 4, type: 'Theory', teacher: 'Shabnam', sections: ['605A'], institution: 'college' },
+  { id: 'SUB005', code: 'DAA', name: 'Design and Analysis of Algorithms', credits: 4, type: 'Theory', teacher: 'Shaqlain', sections: ['605A'], institution: 'college' },
+  { id: 'SUB006', code: 'JAVA', name: 'Java', credits: 4, type: 'Theory', teacher: 'Subham K Mishra', sections: ['605A'], institution: 'college' },
+  { id: 'SUB007', code: 'SS', name: 'Soft Skills', credits: 2, type: 'Theory', teacher: 'Komal Dhiman', sections: ['605A'], institution: 'college' },
+  { id: 'SUB008', code: 'APT', name: 'Aptitude', credits: 2, type: 'Theory', teacher: 'Ashish Agrawal', sections: ['605A'], institution: 'college' },
+  { id: 'SUB009', code: 'ML', name: 'Intro to Machine Learning', credits: 3, type: 'Theory', teacher: 'Neeraj', sections: ['605A'], institution: 'college' },
+  { id: 'SUB010', code: 'DAA-LAB', name: 'DAA Lab', credits: 2, type: 'Lab', teacher: 'Shaqlain', sections: ['605A'], institution: 'college' },
+  { id: 'SUB011', code: 'JAVA-LAB', name: 'Java Lab', credits: 2, type: 'Lab', teacher: 'Subham K Mishra', sections: ['605A'], institution: 'college' },
+
+  // ── School Class 12A subjects ─────────────────────────────────────────────
+  { id: 'SCH-SUB001', code: 'PHY', name: 'Physics', credits: 5, type: 'Theory', teacher: 'Mrs. Sharma', sections: ['12A'], institution: 'school' },
+  { id: 'SCH-SUB002', code: 'CHEM', name: 'Chemistry', credits: 5, type: 'Theory', teacher: 'Mr. Patel', sections: ['12A'], institution: 'school' },
+  { id: 'SCH-SUB003', code: 'MATH', name: 'Mathematics', credits: 5, type: 'Theory', teacher: 'Mrs. Sharma', sections: ['12A'], institution: 'school' },
+  { id: 'SCH-SUB004', code: 'ENG', name: 'English', credits: 4, type: 'Theory', teacher: 'Ms. Reddy', sections: ['12A'], institution: 'school' },
+  { id: 'SCH-SUB005', code: 'CS', name: 'Computer Science', credits: 4, type: 'Theory', teacher: 'Mr. Kumar', sections: ['12A'], institution: 'school' },
+  { id: 'SCH-SUB006', code: 'CS-LAB', name: 'Computer Science Lab', credits: 2, type: 'Lab', teacher: 'Mr. Kumar', sections: ['12A'], institution: 'school' },
+  { id: 'SCH-SUB007', code: 'PE', name: 'Physical Education', credits: 2, type: 'Theory', teacher: 'Mrs. Gupta', sections: ['12A'], institution: 'school' },
 ];
 
 const timetableSlots = [
@@ -112,11 +122,65 @@ const seedCollection = async (collectionName, items) => {
   console.log(`✅ Seeded ${items.length} docs into '${collectionName}'`);
 };
 
+// ── Section 12A (school students — same names as 605A, school institution) ──
+const schoolStudents12A = [
+  { id: 'SCH12A001', uid: 'SCH-12A-001', name: 'Rohit Raj',            section: '12A', year: 'Class 12', email: 'rohit.raj@dps.edu',            parentEmail: 'parent.rohitraj@gmail.com',         faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A002', uid: 'SCH-12A-002', name: 'Himanshu Kumar',       section: '12A', year: 'Class 12', email: 'himanshu.kumar@dps.edu',        parentEmail: 'parent.himanshu@gmail.com',          faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A003', uid: 'SCH-12A-003', name: 'Diya Sharma',          section: '12A', year: 'Class 12', email: 'diya.sharma@dps.edu',           parentEmail: 'parent.diyasharma@gmail.com',        faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A004', uid: 'SCH-12A-004', name: 'Aashu Babu',           section: '12A', year: 'Class 12', email: 'aashu.babu@dps.edu',            parentEmail: 'parent.aashubabu@gmail.com',         faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A005', uid: 'SCH-12A-005', name: 'Karan Kumar',          section: '12A', year: 'Class 12', email: 'karan.kumar@dps.edu',           parentEmail: 'parent.karankumar@gmail.com',        faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A006', uid: 'SCH-12A-006', name: 'Prakhar Sisodiya',     section: '12A', year: 'Class 12', email: 'prakhar.sisodiya@dps.edu',      parentEmail: 'parent.prakhar@gmail.com',           faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A007', uid: 'SCH-12A-007', name: 'Harshpreet Kaur',      section: '12A', year: 'Class 12', email: 'harshpreet.kaur@dps.edu',       parentEmail: 'parent.harshpreet@gmail.com',        faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A008', uid: 'SCH-12A-008', name: 'Sahilpreet Singh',     section: '12A', year: 'Class 12', email: 'sahilpreet.singh@dps.edu',      parentEmail: 'parent.sahilpreet@gmail.com',        faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A009', uid: 'SCH-12A-009', name: 'Naveen',               section: '12A', year: 'Class 12', email: 'naveen@dps.edu',                parentEmail: 'parent.naveen@gmail.com',            faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A010', uid: 'SCH-12A-010', name: 'Shreya Kumari',        section: '12A', year: 'Class 12', email: 'shreya.kumari@dps.edu',         parentEmail: 'parent.shreyakumari@gmail.com',      faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A011', uid: 'SCH-12A-011', name: 'Bhumika',              section: '12A', year: 'Class 12', email: 'bhumika@dps.edu',               parentEmail: 'parent.bhumika@gmail.com',           faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A012', uid: 'SCH-12A-012', name: 'Vishal Kumar',         section: '12A', year: 'Class 12', email: 'vishal.kumar@dps.edu',          parentEmail: 'parent.vishalkumar@gmail.com',       faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A013', uid: 'SCH-12A-013', name: 'Shagun Jangra',        section: '12A', year: 'Class 12', email: 'shagun.jangra@dps.edu',         parentEmail: 'parent.shagun@gmail.com',            faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A014', uid: 'SCH-12A-014', name: 'Dutimaya Pradhan',     section: '12A', year: 'Class 12', email: 'dutimaya.pradhan@dps.edu',      parentEmail: 'parent.dutimaya@gmail.com',          faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A015', uid: 'SCH-12A-015', name: 'Shchi Sharda',         section: '12A', year: 'Class 12', email: 'shchi.sharda@dps.edu',          parentEmail: 'parent.shchi@gmail.com',             faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A016', uid: 'SCH-12A-016', name: 'Rishav Kumar',         section: '12A', year: 'Class 12', email: 'rishav.kumar@dps.edu',          parentEmail: 'parent.rishav@gmail.com',            faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A017', uid: 'SCH-12A-017', name: 'Shivam Bind',          section: '12A', year: 'Class 12', email: 'shivam.bind@dps.edu',           parentEmail: 'parent.shivambind@gmail.com',        faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A018', uid: 'SCH-12A-018', name: 'Priyanshu Bindal',     section: '12A', year: 'Class 12', email: 'priyanshu.bindal@dps.edu',      parentEmail: 'parent.priyanshu@gmail.com',         faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A019', uid: 'SCH-12A-019', name: 'Shreya',               section: '12A', year: 'Class 12', email: 'shreya@dps.edu',                parentEmail: 'parent.shreya@gmail.com',            faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A020', uid: 'SCH-12A-020', name: 'Garima Sharma',        section: '12A', year: 'Class 12', email: 'garima.sharma@dps.edu',         parentEmail: 'parent.garima@gmail.com',            faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A021', uid: 'SCH-12A-021', name: 'Samar Kumar',          section: '12A', year: 'Class 12', email: 'samar.kumar@dps.edu',           parentEmail: 'parent.samar@gmail.com',             faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A022', uid: 'SCH-12A-022', name: 'Lucky',                section: '12A', year: 'Class 12', email: 'lucky@dps.edu',                 parentEmail: 'parent.lucky@gmail.com',             faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A023', uid: 'SCH-12A-023', name: 'Muskaan Rajora',       section: '12A', year: 'Class 12', email: 'muskaan.rajora@dps.edu',        parentEmail: 'parent.muskaan@gmail.com',           faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A024', uid: 'SCH-12A-024', name: 'Ankit Kumar',          section: '12A', year: 'Class 12', email: 'ankit.kumar@dps.edu',           parentEmail: 'parent.ankit@gmail.com',             faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A025', uid: 'SCH-12A-025', name: 'Saatvik Sawarn',       section: '12A', year: 'Class 12', email: 'saatvik.sawarn@dps.edu',        parentEmail: 'parent.saatvik@gmail.com',           faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A026', uid: 'SCH-12A-026', name: 'Paras',                section: '12A', year: 'Class 12', email: 'paras@dps.edu',                 parentEmail: 'parent.paras@gmail.com',             faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A027', uid: 'SCH-12A-027', name: 'Shivam Jaiswal',       section: '12A', year: 'Class 12', email: 'shivam.jaiswal@dps.edu',        parentEmail: 'parent.shivamjaiswal@gmail.com',     faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A028', uid: 'SCH-12A-028', name: 'Yash Kumar Sisodia',   section: '12A', year: 'Class 12', email: 'yash.sisodia@dps.edu',          parentEmail: 'parent.yash@gmail.com',              faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A029', uid: 'SCH-12A-029', name: 'Akshata Singh',        section: '12A', year: 'Class 12', email: 'akshata.singh@dps.edu',         parentEmail: 'parent.akshata@gmail.com',           faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A030', uid: 'SCH-12A-030', name: 'Love Bhardwaj',        section: '12A', year: 'Class 12', email: 'love.bhardwaj@dps.edu',         parentEmail: 'parent.love@gmail.com',              faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A031', uid: 'SCH-12A-031', name: 'Divyanshu Kumar',      section: '12A', year: 'Class 12', email: 'divyanshu.kumar@dps.edu',       parentEmail: 'parent.divyanshu@gmail.com',         faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A032', uid: 'SCH-12A-032', name: 'Aditya Raj',           section: '12A', year: 'Class 12', email: 'aditya.raj@dps.edu',            parentEmail: 'parent.adityaraj@gmail.com',         faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A033', uid: 'SCH-12A-033', name: 'Aarav Sharma',         section: '12A', year: 'Class 12', email: 'aarav.sharma@dps.edu',          parentEmail: 'parent.aarav@gmail.com',             faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A034', uid: 'SCH-12A-034', name: 'Rudra Pratap Singh',   section: '12A', year: 'Class 12', email: 'rudra.singh@dps.edu',           parentEmail: 'parent.rudra@gmail.com',             faceRegistered: false, institution: 'school' },
+  { id: 'SCH12A035', uid: 'SCH-12A-035', name: 'Kumari Riya',          section: '12A', year: 'Class 12', email: 'kumari.riya@dps.edu',           parentEmail: 'parent.riya@gmail.com',              faceRegistered: false, institution: 'school' },
+];
+
 // Re-seed only students (safe to run anytime — overwrites existing docs by ID)
 export const reseedStudents = async () => {
   console.log('🌱 Re-seeding students...');
   await seedCollection('students', students);
   console.log('✅ Students updated!');
+};
+
+// Seed school 12A students
+export const reseedSchoolStudents = async () => {
+  console.log('🌱 Re-seeding school 12A students...');
+  await seedCollection('students', schoolStudents12A);
+  console.log('✅ School 12A students updated!');
+};
+
+// Seed school 12A subjects
+export const reseedSchoolSubjects = async () => {
+  console.log('🌱 Re-seeding school 12A subjects...');
+  const schoolSubs = subjects.filter(s => s.institution === 'school');
+  await seedCollection('subjects', schoolSubs);
+  console.log('✅ School 12A subjects updated!');
 };
 
 export const seedAll = async () => {

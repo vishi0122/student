@@ -38,13 +38,19 @@ const Reports = () => {
     load();
   }, [user]);
 
+  const escapeCSV = (val) => {
+    const str = String(val ?? '');
+    return str.includes(',') || str.includes('"') || str.includes('\n')
+      ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+
   const handleExportCSV = () => {
     if (sessions.length === 0) return;
     const rows = [['Session ID', 'Subject', 'Teacher', 'Section', 'Date', 'Time', 'Room', 'Present', 'Status']];
     sessions.forEach(s => {
       rows.push([s.sessionId, s.subject, s.teacher, s.section, s.date, s.time, s.room, s.attendees?.length || 0, s.status]);
     });
-    const csv = rows.map(r => r.join(',')).join('\n');
+    const csv = rows.map(r => r.map(escapeCSV).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

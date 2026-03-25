@@ -4,10 +4,12 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { loadModels, getFaceDescriptor, compareFacesMulti, loadFaceDescriptors } from '../services/faceService';
 import attendanceStore from '../services/attendanceStore';
-import { createAttendanceSession } from '../services/qrService';
+import { createAttendanceSession, endSession } from '../services/qrService';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layout/DashboardLayout';
-import { ScanFace, Users, CheckCircle2, Loader, AlertCircle, WifiOff, Play } from 'lucide-react';
+import { ScanFace, Users, CheckCircle2, Loader, AlertCircle, WifiOff, Play, Mail } from 'lucide-react';
+import { getStudents } from '../services/dataService';
+import { sendBulkAbsenceNotifications, isEmailConfigured } from '../services/emailService';
 
 const WELCOME_DURATION = 3000;
 const SCAN_INTERVAL = 1200;
@@ -16,6 +18,8 @@ const THRESHOLD = 0.65;
 const FaceKiosk = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isSchool = user?.instType === 'school';
+  const defaultSection = isSchool ? '12A' : '605A';
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -34,6 +38,7 @@ const FaceKiosk = () => {
   const [scanState, setScanState] = useState('idle'); // idle | scanning | unknown | already-marked
   const [newSubject, setNewSubject] = useState('');
   const [creating, setCreating] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(''); // '' | 'sending' | 'done'
 
   // ── Attach stream to video element once both exist ─────────────────────────
   useEffect(() => {
@@ -239,7 +244,7 @@ const FaceKiosk = () => {
     try {
       const s = await createAttendanceSession({
         subject: newSubject.trim(),
-        section: '605A',
+        section: defaultSection,
         teacher: user?.name || user?.email || 'Faculty',
         room: 'N/A',
       });
@@ -250,6 +255,39 @@ const FaceKiosk = () => {
       setStatusMsg('Failed to create session. Try again.');
     }
     setCreating(false);
+  };
+
+  const handleEndKiosk = async () => {
+    stopAll();
+    const s = sessionRef.current;
+    if (s) {
+      const sessionId = s.id || s.sessionId;
+      await endSession(sessionId);
+
+      if (isEmailConfigured()) {
+        setEmailStatus('sending');
+        try {
+          const allStudents = await getStudents({ section: s.section });
+          const presentUIDs = markedRef.current;
+          const absentStudents = allStudents.filter(st => !presentUIDs.has(st.uid));
+          if (absentStudents.length > 0) {
+            await sendBulkAbsenceNotifications(absentStudents, {
+              subject: s.subject,
+              date: s.date || new Date().toISOString().split('T')[0],
+              teacher: s.teacher,
+              section: s.section,
+            });
+          }
+          setEmailStatus('done');
+        } catch (e) {
+          console.error('Auto email error:', e);
+          setEmailStatus('done');
+        }
+        setTimeout(() => navigate('/reports'), 1500);
+        return;
+      }
+    }
+    navigate('/reports');
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -276,9 +314,16 @@ const FaceKiosk = () => {
                 Live
               </span>
             )}
-            <button onClick={() => navigate('/attendance')}
-              className="text-sm text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg">
-              ← Back
+            <button onClick={handleEndKiosk}
+              disabled={emailStatus === 'sending'}
+              className="text-sm text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg disabled:opacity-50 flex items-center gap-1.5">
+              {emailStatus === 'sending' ? (
+                <><Loader size={13} className="animate-spin"/> Sending emails...</>
+              ) : emailStatus === 'done' ? (
+                <><Mail size={13}/> Emails sent ✓</>
+              ) : (
+                '← End & Back'
+              )}
             </button>
           </div>
         </div>

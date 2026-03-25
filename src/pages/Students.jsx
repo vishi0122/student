@@ -96,7 +96,7 @@ const Students = () => {
               className="border border-gray-300 rounded-lg py-2 px-3 bg-white text-sm focus:ring-[#1E3A8A] focus:border-[#1E3A8A]"
             >
               <option value="all">All Sections</option>
-              {(isAdmin ? ['601A', '601B', '602', '603', '604', '605', '606', '607'] : sections).map(s => (
+              {(isAdmin ? ['601A', '601B', '602', '603', '604', '605', '605A', '606', '607', '12A'] : sections).map(s => (
                 <option key={s} value={s}>Section {s}</option>
               ))}
             </select>
@@ -192,7 +192,7 @@ const Students = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
                 <select value={newStudent.section} onChange={e => setNewStudent(p => ({ ...p, section: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg py-2 px-3 text-sm bg-white">
-                  {['601A', '601B', '602', '603', '604', '605', '606', '607'].map(s => <option key={s}>{s}</option>)}
+                  {['601A', '601B', '602', '603', '604', '605', '605A', '606', '607', '12A'].map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
               <div className="flex gap-3 pt-2">

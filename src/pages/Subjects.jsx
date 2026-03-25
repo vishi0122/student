@@ -23,6 +23,8 @@ const Subjects = () => {
       } else {
         data = await getSubjects();
       }
+      // Filter by institution so school users only see school subjects
+      if (user?.instType) data = data.filter(s => !s.institution || s.institution === user.instType);
       setSubjects(data);
       setLoading(false);
     };

@@ -1,14 +1,11 @@
 // Authentication Service — Firebase Auth + Firestore profile
 import {
-  getAuth,
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from './firebase';
-
-const auth = getAuth();
+import { auth, db } from './firebase';
 
 // Sign in with Firebase Auth, then load profile from Firestore
 export const loginUser = async (email, password) => {
