@@ -1,7 +1,7 @@
 // Face recognition service using face-api.js
 
 import * as faceapi from 'face-api.js';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
 const MODEL_URL = '/models';
@@ -45,11 +45,12 @@ export const saveFaceDescriptors = async (studentDocId, descriptors) => {
   const descriptorMap = {};
   descriptors.forEach((d, i) => { descriptorMap[`d${i}`] = Array.from(d); });
   descriptorMap.count = descriptors.length;
-  await updateDoc(ref, {
+  // Use setDoc with merge so it works even if the doc was just created locally
+  await setDoc(ref, {
     faceDescriptorMap: descriptorMap,
-    faceDescriptor: Array.from(descriptors[0]), // legacy single field
+    faceDescriptor: Array.from(descriptors[0]),
     faceRegistered: true,
-  });
+  }, { merge: true });
 };
 
 // Load all stored descriptors for a student

@@ -1,6 +1,6 @@
 // Central Firestore data service — replaces all src/data/*.js static imports
 import {
-  collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc,
+  collection, doc, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc,
   query, where, orderBy, onSnapshot, getCountFromServer
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -26,6 +26,12 @@ export const getStudentByUID = async (uid) => {
 };
 
 export const addStudent = async (data) => {
+  // If data already has an `id`, use it as the Firestore doc ID so face registration works
+  if (data.id) {
+    const ref = doc(db, 'students', data.id);
+    await setDoc(ref, data);
+    return data;
+  }
   const ref = await addDoc(collection(db, 'students'), data);
   return { id: ref.id, ...data };
 };
