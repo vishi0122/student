@@ -1,12 +1,157 @@
-import { useState, useEffect } from 'react';
-import { Plus, Search, CheckCircle2, XCircle, Loader } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Search, CheckCircle2, XCircle, Loader, ScanFace, Camera } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { getStudents, addStudent, updateStudent, deleteStudent } from '../services/dataService';
+import { loadModels, captureMultipleDescriptors, saveFaceDescriptors } from '../services/faceService';
 
+// ── Inline Face Registration Modal ──────────────────────────────────────────
+const FaceRegisterModal = ({ student, onClose, onSuccess }) => {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [status, setStatus] = useState('idle'); // idle | starting | capturing | saving | done | error
+  const [message, setMessage] = useState('Click "Start Camera" to begin.');
+  const [modelsReady, setModelsReady] = useState(false);
+
+  useEffect(() => {
+    loadModels().then(() => setModelsReady(true)).catch(() => setMessage('Failed to load face models.'));
+    return () => stopCamera();
+  }, []);
+
+  const startCamera = async () => {
+    setStatus('starting');
+    setMessage('Starting camera...');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await new Promise(resolve => {
+          videoRef.current.onloadedmetadata = () => videoRef.current.play().then(resolve).catch(resolve);
+          if (videoRef.current.readyState >= 2) videoRef.current.play().then(resolve).catch(resolve);
+        });
+      }
+      setStatus('idle');
+      setMessage('Camera ready. Position the student\'s face in the oval and click Capture.');
+    } catch {
+      setStatus('error');
+      setMessage('Camera permission denied. Allow camera access and try again.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const handleCapture = async () => {
+    if (!videoRef.current || !streamRef.current) return;
+    setStatus('capturing');
+    try {
+      const descriptors = await captureMultipleDescriptors(videoRef.current, 8, (i, total) => {
+        setMessage(`Capturing sample ${i}/${total} — hold still...`);
+      });
+      if (descriptors.length < 3) {
+        setStatus('error');
+        setMessage(`Only got ${descriptors.length} samples. Ensure good lighting and face the camera directly.`);
+        return;
+      }
+      setStatus('saving');
+      setMessage(`Saving ${descriptors.length} face samples...`);
+      await saveFaceDescriptors(student.id, descriptors);
+      stopCamera();
+      setStatus('done');
+      setMessage(`Face registered with ${descriptors.length} samples.`);
+      setTimeout(() => onSuccess(), 1200);
+    } catch (err) {
+      setStatus('error');
+      setMessage(`Failed: ${err?.message || 'Unknown error'}. Try again.`);
+    }
+  };
+
+  const isCapturing = status === 'capturing' || status === 'saving';
+  const cameraActive = !!streamRef.current;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md p-6">
+        <div className="text-center mb-4">
+          <div className="w-12 h-12 bg-[#1E3A8A] rounded-full flex items-center justify-center mx-auto mb-3">
+            <ScanFace size={24} className="text-white" />
+          </div>
+          <h2 className="text-lg font-bold text-gray-900">Register Face — {student.name}</h2>
+          <p className="text-sm text-gray-500 mt-1">{student.uid} · Section {student.section}</p>
+        </div>
+
+        {/* Video */}
+        <div className="relative rounded-xl overflow-hidden bg-black mb-4" style={{ aspectRatio: '4/3' }}>
+          <video ref={videoRef} autoPlay muted playsInline
+            className="w-full h-full object-cover"
+            style={{ transform: 'scaleX(-1)' }}
+          />
+          {/* Face guide oval */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className={`w-44 h-52 border-4 rounded-full transition-colors duration-300 ${
+              status === 'capturing' ? 'border-blue-400' :
+              status === 'done' ? 'border-emerald-400' :
+              'border-white/50'
+            }`} />
+          </div>
+          {/* Done overlay */}
+          {status === 'done' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+              <div className="text-center text-white">
+                <CheckCircle2 size={56} className="text-emerald-400 mx-auto mb-2" />
+                <p className="font-bold text-lg">Registered!</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Status message */}
+        <div className={`p-3 rounded-lg mb-4 text-sm text-center font-medium ${
+          status === 'done' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+          status === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+          'bg-blue-50 text-blue-800 border border-blue-200'
+        }`}>
+          {isCapturing && <Loader size={13} className="inline animate-spin mr-2" />}
+          {status === 'done' && <CheckCircle2 size={13} className="inline mr-2 text-emerald-600" />}
+          {message}
+        </div>
+
+        <div className="flex gap-3">
+          {!cameraActive && status !== 'done' && (
+            <Button onClick={startCamera} disabled={!modelsReady || status === 'starting'} className="flex-1" icon={Camera}>
+              {modelsReady ? 'Start Camera' : 'Loading models...'}
+            </Button>
+          )}
+          {cameraActive && status !== 'done' && (
+            <Button onClick={handleCapture} disabled={isCapturing} className="flex-1" icon={ScanFace}>
+              {isCapturing ? 'Capturing...' : 'Capture Face'}
+            </Button>
+          )}
+          {status === 'error' && cameraActive && (
+            <Button onClick={() => { setStatus('idle'); setMessage('Try again — position face in the oval.'); }} variant="outline" className="flex-1">
+              Retry
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => { stopCamera(); onClose(); }} className="flex-1">
+            {status === 'done' ? 'Close' : 'Cancel'}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// ── Main Students Page ───────────────────────────────────────────────────────
 const Students = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -16,7 +161,8 @@ const Students = () => {
   const [search, setSearch] = useState('');
   const [selectedSection, setSelectedSection] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editStudent, setEditStudent] = useState(null); // student being edited
+  const [editStudent, setEditStudent] = useState(null);
+  const [faceRegisterStudent, setFaceRegisterStudent] = useState(null); // student to register face for
   const [newStudent, setNewStudent] = useState({ name: '', uid: '', section: '601A', year: '2nd Year', email: '', parentEmail: '', faceRegistered: false, institution: 'college' });
 
   const sections = user?.sections || [];
@@ -54,9 +200,15 @@ const Students = () => {
     setEditStudent(null);
   };
 
-  const handleToggleFace = async (student) => {
-    await updateStudent(student.id, { faceRegistered: !student.faceRegistered });
-    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, faceRegistered: !s.faceRegistered } : s));
+  const handleUnregisterFace = async (student) => {
+    if (!confirm(`Remove face registration for ${student.name}?`)) return;
+    await updateStudent(student.id, { faceRegistered: false, faceDescriptor: null, faceDescriptorMap: null });
+    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, faceRegistered: false } : s));
+  };
+
+  const handleFaceRegistered = (studentId) => {
+    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, faceRegistered: true } : s));
+    setFaceRegisterStudent(null);
   };
 
   const handleDelete = async (id) => {
@@ -125,11 +277,13 @@ const Students = () => {
                     <tr><td colSpan={isAdmin ? 7 : 6} className="p-8 text-center text-gray-400">No students found</td></tr>
                   ) : filtered.map(student => (
                     <tr key={student.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="p-4 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
-                          {student.name.charAt(0)}
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                            {student.name.charAt(0)}
+                          </div>
+                          <span className="font-medium text-gray-900">{student.name}</span>
                         </div>
-                        <span className="font-medium text-gray-900">{student.name}</span>
                       </td>
                       <td className="p-4 text-gray-600 text-sm font-mono">{student.uid}</td>
                       <td className="p-4">
@@ -146,24 +300,41 @@ const Students = () => {
                       </td>
                       <td className="p-4">
                         {student.faceRegistered ? (
-                          <Badge variant="success"><span className="flex items-center gap-1"><CheckCircle2 size={12}/> Registered</span></Badge>
+                          <Badge variant="success">
+                            <span className="flex items-center gap-1"><CheckCircle2 size={12}/> Registered</span>
+                          </Badge>
                         ) : (
-                          <Badge variant="warning"><span className="flex items-center gap-1"><XCircle size={12}/> Pending</span></Badge>
+                          <Badge variant="warning">
+                            <span className="flex items-center gap-1"><XCircle size={12}/> Pending</span>
+                          </Badge>
                         )}
                       </td>
                       {(isAdmin || isFaculty) && (
-                        <td className="p-4 text-right space-x-3">
-                          <button onClick={() => setEditStudent({ ...student })} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                            Edit Email
-                          </button>
-                          {isAdmin && <>
-                            <button onClick={() => handleToggleFace(student)} className="text-[#10B981] hover:text-emerald-700 text-sm font-medium">
-                              {student.faceRegistered ? 'Unregister' : 'Register Face'}
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-3">
+                            <button onClick={() => setEditStudent({ ...student })} className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                              Edit Email
                             </button>
-                            <button onClick={() => handleDelete(student.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">
-                              Delete
-                            </button>
-                          </>}
+                            {isAdmin && (
+                              <>
+                                {student.faceRegistered ? (
+                                  <button onClick={() => handleUnregisterFace(student)} className="text-amber-600 hover:text-amber-800 text-sm font-medium">
+                                    Unregister
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => setFaceRegisterStudent(student)}
+                                    className="flex items-center gap-1 text-[#10B981] hover:text-emerald-700 text-sm font-medium"
+                                  >
+                                    <ScanFace size={14} /> Register Face
+                                  </button>
+                                )}
+                                <button onClick={() => handleDelete(student.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -202,6 +373,7 @@ const Students = () => {
             </Card>
           </div>
         )}
+
         {/* Edit Email Modal */}
         {editStudent && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -229,6 +401,15 @@ const Students = () => {
               </div>
             </Card>
           </div>
+        )}
+
+        {/* Face Registration Modal */}
+        {faceRegisterStudent && (
+          <FaceRegisterModal
+            student={faceRegisterStudent}
+            onClose={() => setFaceRegisterStudent(null)}
+            onSuccess={() => handleFaceRegistered(faceRegisterStudent.id)}
+          />
         )}
       </div>
     </DashboardLayout>
