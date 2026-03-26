@@ -15,11 +15,20 @@ const FaceRegisterModal = ({ student, onClose, onSuccess }) => {
   const [status, setStatus] = useState('idle'); // idle | starting | capturing | saving | done | error
   const [message, setMessage] = useState('Click "Start Camera" to begin.');
   const [modelsReady, setModelsReady] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
 
   useEffect(() => {
     loadModels().then(() => setModelsReady(true)).catch(() => setMessage('Failed to load face models.'));
     return () => stopCamera();
   }, []);
+
+  // Attach stream to video element once camera becomes active
+  useEffect(() => {
+    if (cameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [cameraActive]);
 
   const startCamera = async () => {
     setStatus('starting');
@@ -29,15 +38,9 @@ const FaceRegisterModal = ({ student, onClose, onSuccess }) => {
         video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await new Promise(resolve => {
-          videoRef.current.onloadedmetadata = () => videoRef.current.play().then(resolve).catch(resolve);
-          if (videoRef.current.readyState >= 2) videoRef.current.play().then(resolve).catch(resolve);
-        });
-      }
+      setCameraActive(true); // triggers useEffect to attach stream
       setStatus('idle');
-      setMessage('Camera ready. Position the student\'s face in the oval and click Capture.');
+      setMessage("Camera ready. Position the student's face in the oval and click Capture.");
     } catch {
       setStatus('error');
       setMessage('Camera permission denied. Allow camera access and try again.');
@@ -49,6 +52,7 @@ const FaceRegisterModal = ({ student, onClose, onSuccess }) => {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
+    setCameraActive(false);
   };
 
   const handleCapture = async () => {
@@ -77,7 +81,6 @@ const FaceRegisterModal = ({ student, onClose, onSuccess }) => {
   };
 
   const isCapturing = status === 'capturing' || status === 'saving';
-  const cameraActive = !!streamRef.current;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
