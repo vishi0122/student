@@ -34,7 +34,8 @@ const Attendance = () => {
     load();
   }, [user]);
 
-  const sections = user?.sections || ['605A'];
+  const ALL_SECTIONS = ['601A', '601B', '602', '603', '604', '605', '605A', '606', '607', '608', '609', '610', '12A'];
+  const sections = isAdmin ? ALL_SECTIONS : (user?.sections?.length ? user.sections : ALL_SECTIONS);
 
   const handleStartSession = () => {
     navigate('/live-session', { state: { mode, sessionType, subject: selectedSubject, section: selectedSection } });
