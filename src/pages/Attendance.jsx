@@ -12,6 +12,7 @@ const Attendance = () => {
   const { user } = useAuth();
   const isCollege = user?.instType === 'college';
   const isFaculty = user?.role === 'faculty';
+  const isAdmin = user?.role === 'admin';
   const [mode, setMode] = useState(isCollege ? 'university' : 'school');
   const [sessionType, setSessionType] = useState('lecture');
   const [subjects, setSubjects] = useState([]);
