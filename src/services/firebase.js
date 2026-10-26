@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
+// Validate Firebase configuration — use defaults if available, but warn if env vars are missing
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDNWvI0emtnUbMBz24cmA4ea0uGJoX4lYg",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "students-1b03c.firebaseapp.com",
@@ -11,6 +12,11 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:776620371587:web:42ba0d9029ada144b475b6",
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-7C6VZKP2RJ",
 };
+
+// Log warning if using fallback credentials (not from .env)
+if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+  console.warn('⚠️ Firebase credentials not found in environment variables. Using fallback credentials from code. For production, create .env.local with VITE_FIREBASE_* variables.');
+}
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);

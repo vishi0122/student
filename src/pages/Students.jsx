@@ -6,7 +6,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { getStudents, addStudent, updateStudent, deleteStudent } from '../services/dataService';
-import { loadModels, captureMultipleDescriptors, saveFaceDescriptors } from '../services/faceService';
+import { loadModels, captureMultipleDescriptors, saveFaceDescriptors, disposeModels } from '../services/faceService';
 
 // ── Inline Face Registration Modal ──────────────────────────────────────────
 const FaceRegisterModal = ({ student, onClose, onSuccess }) => {
@@ -19,7 +19,10 @@ const FaceRegisterModal = ({ student, onClose, onSuccess }) => {
 
   useEffect(() => {
     loadModels().then(() => setModelsReady(true)).catch(() => setMessage('Failed to load face models.'));
-    return () => stopCamera();
+    return () => {
+      stopCamera();
+      disposeModels(); // Clean up models on unmount
+    };
   }, []);
 
   // Attach stream to video element once camera becomes active
@@ -69,14 +72,21 @@ const FaceRegisterModal = ({ student, onClose, onSuccess }) => {
       }
       setStatus('saving');
       setMessage(`Saving ${descriptors.length} face samples...`);
-      await saveFaceDescriptors(student.id, descriptors);
-      stopCamera();
-      setStatus('done');
-      setMessage(`Face registered with ${descriptors.length} samples.`);
-      setTimeout(() => onSuccess(), 1200);
+      try {
+        await saveFaceDescriptors(student.id, descriptors);
+        stopCamera();
+        setStatus('done');
+        setMessage(`Face registered with ${descriptors.length} samples.`);
+        setTimeout(() => onSuccess(), 1200);
+      } catch (saveErr) {
+        setStatus('error');
+        setMessage(`Failed to save: ${saveErr?.message || 'Unknown error'}. Try again.`);
+        console.error('Save error:', saveErr);
+      }
     } catch (err) {
       setStatus('error');
       setMessage(`Failed: ${err?.message || 'Unknown error'}. Try again.`);
+      console.error('Capture error:', err);
     }
   };
 
@@ -173,11 +183,17 @@ const Students = () => {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const filters = {};
-      if (selectedSection !== 'all') filters.section = selectedSection;
-      const data = await getStudents(filters);
-      setStudents(data);
-      setLoading(false);
+      try {
+        const filters = {};
+        if (selectedSection !== 'all') filters.section = selectedSection;
+        const data = await getStudents(filters);
+        setStudents(data);
+      } catch (err) {
+        console.error('Failed to load students:', err);
+        alert('Failed to load students. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, [selectedSection]);
@@ -189,24 +205,39 @@ const Students = () => {
 
   const handleAdd = async () => {
     if (!newStudent.name || !newStudent.uid) return;
-    const id = `STU-${Date.now()}`;
-    await addStudent({ ...newStudent, id });
-    setStudents(prev => [...prev, { ...newStudent, id }]);
-    setShowAddModal(false);
-    setNewStudent({ name: '', uid: '', section: '601A', year: '2nd Year', email: '', parentEmail: '', faceRegistered: false, institution: 'college' });
+    try {
+      const id = `STU-${Date.now()}`;
+      await addStudent({ ...newStudent, id });
+      setStudents(prev => [...prev, { ...newStudent, id }]);
+      setShowAddModal(false);
+      setNewStudent({ name: '', uid: '', section: '601A', year: '2nd Year', email: '', parentEmail: '', faceRegistered: false, institution: 'college' });
+    } catch (err) {
+      console.error('Failed to add student:', err);
+      alert('Failed to add student. Please try again.');
+    }
   };
 
   const handleEditSave = async () => {
     if (!editStudent) return;
-    await updateStudent(editStudent.id, { parentEmail: editStudent.parentEmail, email: editStudent.email, name: editStudent.name });
-    setStudents(prev => prev.map(s => s.id === editStudent.id ? { ...s, ...editStudent } : s));
-    setEditStudent(null);
+    try {
+      await updateStudent(editStudent.id, { parentEmail: editStudent.parentEmail, email: editStudent.email, name: editStudent.name });
+      setStudents(prev => prev.map(s => s.id === editStudent.id ? { ...s, ...editStudent } : s));
+      setEditStudent(null);
+    } catch (err) {
+      console.error('Failed to save student:', err);
+      alert('Failed to save changes. Please try again.');
+    }
   };
 
   const handleUnregisterFace = async (student) => {
     if (!confirm(`Remove face registration for ${student.name}?`)) return;
-    await updateStudent(student.id, { faceRegistered: false, faceDescriptor: null, faceDescriptorMap: null });
-    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, faceRegistered: false } : s));
+    try {
+      await updateStudent(student.id, { faceRegistered: false, faceDescriptor: null, faceDescriptorMap: null });
+      setStudents(prev => prev.map(s => s.id === student.id ? { ...s, faceRegistered: false } : s));
+    } catch (err) {
+      console.error('Failed to unregister face:', err);
+      alert('Failed to unregister face. Please try again.');
+    }
   };
 
   const handleFaceRegistered = (studentId) => {
@@ -216,8 +247,13 @@ const Students = () => {
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this student?')) return;
-    await deleteStudent(id);
-    setStudents(prev => prev.filter(s => s.id !== id));
+    try {
+      await deleteStudent(id);
+      setStudents(prev => prev.filter(s => s.id !== id));
+    } catch (err) {
+      console.error('Failed to delete student:', err);
+      alert('Failed to delete student. Please try again.');
+    }
   };
 
   return (

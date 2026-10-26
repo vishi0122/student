@@ -36,31 +36,59 @@ const LiveSession = () => {
 
   useEffect(() => {
     let unsubscribe = () => {};
+    let isMounted = true; // Prevent state updates after unmount
+    
     const initSession = async () => {
-      const lecture = detectCurrentLecture('605A');
-      setCurrentLecture(lecture);
-      const subject = location.state?.subject || lecture?.subject || 'General Session';
-      const section = location.state?.section || lecture?.section || (mode === 'school' ? '12A' : '605A');
-      const room = lecture?.room || '208';
-      const newSession = await createAttendanceSession({
-        subject, section,
-        teacher: user?.name || lecture?.teacher || 'Faculty',
-        room,
-      });
-      setSession(newSession);
-      updateQRCode(newSession);
-      if (mode === 'school') { navigate('/kiosk'); return; }
-      unsubscribe = subscribeToSession(newSession.sessionId, (rec) => {
-        setRecentScans(prev => [{
-          id: rec.id, name: rec.studentName, uid: rec.studentUID,
-          time: new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }, ...prev].slice(0, 10));
-        setScannedCount(prev => prev + 1);
-      });
+      try {
+        const lecture = detectCurrentLecture('605A');
+        if (!isMounted) return;
+        setCurrentLecture(lecture);
+        
+        const subject = location.state?.subject || lecture?.subject || 'General Session';
+        const section = location.state?.section || lecture?.section || (mode === 'school' ? '12A' : '605A');
+        const room = lecture?.room || '208';
+        
+        const newSession = await createAttendanceSession({
+          subject, section,
+          teacher: user?.name || lecture?.teacher || 'Faculty',
+          room,
+        });
+        
+        if (!isMounted) return; // Check again after async operation
+        
+        setSession(newSession);
+        updateQRCode(newSession);
+        
+        if (mode === 'school') { 
+          navigate('/kiosk'); 
+          return; 
+        }
+        
+        // Subscribe to session updates
+        unsubscribe = subscribeToSession(newSession.sessionId, (rec) => {
+          if (!isMounted) return; // Don't update if unmounted
+          
+          setRecentScans(prev => [{
+            id: rec.id, name: rec.studentName, uid: rec.studentUID,
+            time: new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }, ...prev].slice(0, 10));
+          setScannedCount(prev => prev + 1);
+        });
+      } catch (err) {
+        console.error('LiveSession init error:', err);
+        if (isMounted) {
+          setCurrentLecture(null);
+        }
+      }
     };
+    
     initSession();
-    return () => unsubscribe();
-  }, [user]);
+    
+    return () => {
+      isMounted = false; // Prevent state updates after unmount
+      unsubscribe(); // Unsubscribe from Firestore listener
+    };
+  }, [user, mode, location.state, navigate]);
 
   useEffect(() => {
     if (!session) return;

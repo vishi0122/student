@@ -9,21 +9,66 @@ let modelsLoaded = false;
 
 export const loadModels = async () => {
   if (modelsLoaded) return;
-  await Promise.all([
-    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-  ]);
-  modelsLoaded = true;
+  try {
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+    ]);
+    modelsLoaded = true;
+  } catch (err) {
+    console.error('❌ Failed to load face models:', err);
+    modelsLoaded = false;
+    throw err;
+  }
 };
 
-// Single descriptor from video element
-export const getFaceDescriptor = async (videoEl) => {
-  const detection = await faceapi
-    .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
-    .withFaceLandmarks()
-    .withFaceDescriptor();
-  return detection ? detection.descriptor : null;
+// Dispose of all face-api models to free memory
+export const disposeModels = () => {
+  try {
+    faceapi.nets.tinyFaceDetector.dispose?.();
+    faceapi.nets.faceLandmark68Net.dispose?.();
+    faceapi.nets.faceRecognitionNet.dispose?.();
+    modelsLoaded = false;
+  } catch (err) {
+    console.error('⚠️ Error disposing models:', err);
+  }
+};
+
+// Single descriptor from video element with timeout and tensor cleanup
+export const getFaceDescriptor = async (videoEl, timeoutMs = 5000) => {
+  if (!videoEl || videoEl.readyState !== 2) {
+    return null; // Video not ready
+  }
+
+  try {
+    const detectionPromise = faceapi
+      .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    // Add timeout protection
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Face detection timeout')), timeoutMs)
+    );
+
+    const detection = await Promise.race([detectionPromise, timeoutPromise]);
+    
+    if (!detection) return null;
+
+    // Extract descriptor and convert to plain array to prevent tensor memory leaks
+    const descriptor = detection.descriptor ? Float32Array.from(detection.descriptor) : null;
+    
+    // Dispose TensorFlow tensors to prevent memory leaks
+    detection.dispose?.();
+
+    return descriptor;
+  } catch (err) {
+    if (err.message === 'Face detection timeout') {
+      console.warn('⚠️ Face detection timeout - video stream may be frozen');
+    }
+    return null;
+  }
 };
 
 // Capture N raw descriptors (no averaging) — more accurate for registration

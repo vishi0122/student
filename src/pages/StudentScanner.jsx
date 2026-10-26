@@ -10,7 +10,7 @@ import Badge from '../components/ui/Badge';
 import { validateQRData } from '../services/qrService';
 import attendanceStore from '../services/attendanceStore';
 import { getStudentByUID } from '../services/dataService';
-import { loadModels, getFaceDescriptor, captureMultipleDescriptors, saveFaceDescriptors, loadFaceDescriptors, compareFacesMulti } from '../services/faceService';
+import { loadModels, getFaceDescriptor, captureMultipleDescriptors, saveFaceDescriptors, loadFaceDescriptors, compareFacesMulti, disposeModels } from '../services/faceService';
 
 // Steps: 'uid' → 'face-register' | 'face-verify' → 'scan'
 const StudentScanner = () => {
@@ -40,7 +40,13 @@ const StudentScanner = () => {
 
   useEffect(() => {
     loadModels().then(() => setModelsReady(true)).catch(console.error);
-    return () => { stopScanner(); stopFaceCamera(); };
+    
+    // CRITICAL: Cleanup on unmount
+    return () => { 
+      stopScanner(); 
+      stopFaceCamera();
+      disposeModels(); // Free face-api memory
+    };
   }, []);
 
   // Live UID lookup debounced
@@ -90,6 +96,10 @@ const StudentScanner = () => {
         await startFaceCamera();
         setFaceStatus('capturing');
         setFaceMessage('Look at the camera to verify your identity...');
+        
+        // ⚠️ CRITICAL FIX: Clear previous interval before starting new one
+        clearInterval(faceIntervalRef.current);
+        
         faceIntervalRef.current = setInterval(async () => {
           if (!videoRef.current) return;
           const live = await getFaceDescriptor(videoRef.current);
@@ -99,7 +109,8 @@ const StudentScanner = () => {
           }
           const result = compareFacesMulti(live, storedList);
           if (result.match) {
-            clearInterval(faceIntervalRef.current);
+            clearInterval(faceIntervalRef.current); // ⚠️ Clear interval immediately on match
+            faceIntervalRef.current = null;
             stopFaceCamera();
             setFaceStatus('success');
             setFaceMessage(`Identity verified! (distance: ${result.distance})`);
@@ -109,7 +120,13 @@ const StudentScanner = () => {
           }
         }, 1500);
       }, 150);
-      return () => { clearTimeout(t); stopFaceCamera(); };
+      
+      // ⚠️ CRITICAL: Cleanup interval when step changes
+      return () => { 
+        clearTimeout(t); 
+        clearInterval(faceIntervalRef.current);
+        stopFaceCamera(); 
+      };
     }
   }, [step]);
 

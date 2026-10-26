@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { loadModels, getFaceDescriptor, compareFacesMulti, loadFaceDescriptors } from '../services/faceService';
+import { loadModels, getFaceDescriptor, compareFacesMulti, loadFaceDescriptors, disposeModels } from '../services/faceService';
 import attendanceStore from '../services/attendanceStore';
 import { createAttendanceSession, endSession } from '../services/qrService';
 import { useAuth } from '../context/AuthContext';
@@ -68,7 +68,12 @@ const FaceKiosk = () => {
       if (cancelled) return;
       await launchKiosk(active, cancelled);
     })();
-    return () => { cancelled = true; stopAll(); };
+    
+    // CRITICAL: Cleanup on unmount
+    return () => {
+      cancelled = true;
+      stopAll();
+    };
   }, []);
 
   const launchKiosk = async (activeSession, cancelled = false) => {
@@ -156,6 +161,8 @@ const FaceKiosk = () => {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
+    // Dispose face-api models to free memory
+    disposeModels();
   };
 
   const startDetection = () => {
@@ -166,72 +173,84 @@ const FaceKiosk = () => {
       if (!videoRef.current || !videoRef.current.srcObject) return;
 
       setScanState('scanning');
-      const descriptor = await getFaceDescriptor(videoRef.current);
+      
+      try {
+        const descriptor = await getFaceDescriptor(videoRef.current);
 
-      if (!descriptor) {
-        setScanState('idle');
-        return;
-      }
+        if (!descriptor) {
+          setScanState('idle');
+          return;
+        }
 
-      let bestMatch = null;
-      let bestDist = Infinity;
-      for (const student of studentsRef.current) {
-        if (!student.descriptors?.length) continue;
-        const { distance } = compareFacesMulti(descriptor, student.descriptors, THRESHOLD);
-        if (distance < bestDist) { bestDist = distance; bestMatch = student; }
-      }
+        let bestMatch = null;
+        let bestDist = Infinity;
+        for (const student of studentsRef.current) {
+          if (!student.descriptors?.length) continue;
+          const { distance } = compareFacesMulti(descriptor, student.descriptors, THRESHOLD);
+          if (distance < bestDist) { bestDist = distance; bestMatch = student; }
+        }
 
-      if (bestMatch && bestDist < THRESHOLD) {
-        clearTimeout(unknownTimer);
+        if (bestMatch && bestDist < THRESHOLD) {
+          clearTimeout(unknownTimer);
 
-        if (markedRef.current.has(bestMatch.uid)) {
-          setScanState('already-marked');
+          if (markedRef.current.has(bestMatch.uid)) {
+            setScanState('already-marked');
+            unknownTimer = setTimeout(() => setScanState('idle'), 2000);
+            return;
+          }
+
+          consecutiveHits[bestMatch.uid] = (consecutiveHits[bestMatch.uid] || 0) + 1;
+          for (const uid of Object.keys(consecutiveHits)) {
+            if (uid !== bestMatch.uid) consecutiveHits[uid] = 0;
+          }
+
+          if (consecutiveHits[bestMatch.uid] < 2) {
+            setScanState('scanning');
+            return;
+          }
+
+          markedRef.current.add(bestMatch.uid);
+          const s = sessionRef.current;
+          try {
+            const result = await attendanceStore.markAttendance(s.id || s.sessionId, {
+              studentId: bestMatch.docId,
+              studentName: bestMatch.name,
+              studentUID: bestMatch.uid,
+              section: bestMatch.section,
+              method: 'face',
+            });
+
+            if (!result.success) {
+              setScanState('already-marked');
+              unknownTimer = setTimeout(() => setScanState('idle'), 2000);
+              return;
+            }
+          } catch (error) {
+            console.error('Failed to mark attendance:', error);
+            setScanState('idle');
+            return;
+          }
+
+          setScanState('idle');
+          setPresentCount(markedRef.current.size);
+          setRecentScans(prev => [{
+            uid: bestMatch.uid,
+            name: bestMatch.name,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }, ...prev]);
+          setWelcome({ name: bestMatch.name, uid: bestMatch.uid });
+          setTimeout(() => setWelcome(null), WELCOME_DURATION);
+
+        } else {
+          // Face detected but no match — show "not recognized"
+          for (const uid of Object.keys(consecutiveHits)) consecutiveHits[uid] = 0;
+          setScanState('unknown');
+          clearTimeout(unknownTimer);
           unknownTimer = setTimeout(() => setScanState('idle'), 2000);
-          return;
         }
-
-        consecutiveHits[bestMatch.uid] = (consecutiveHits[bestMatch.uid] || 0) + 1;
-        for (const uid of Object.keys(consecutiveHits)) {
-          if (uid !== bestMatch.uid) consecutiveHits[uid] = 0;
-        }
-
-        if (consecutiveHits[bestMatch.uid] < 2) {
-          setScanState('scanning');
-          return;
-        }
-
-        markedRef.current.add(bestMatch.uid);
-        const s = sessionRef.current;
-        const result = await attendanceStore.markAttendance(s.id || s.sessionId, {
-          studentId: bestMatch.docId,
-          studentName: bestMatch.name,
-          studentUID: bestMatch.uid,
-          section: bestMatch.section,
-          method: 'face',
-        });
-
-        if (!result.success) {
-          setScanState('already-marked');
-          unknownTimer = setTimeout(() => setScanState('idle'), 2000);
-          return;
-        }
-
+      } catch (err) {
+        console.error('Detection loop error:', err);
         setScanState('idle');
-        setPresentCount(markedRef.current.size);
-        setRecentScans(prev => [{
-          uid: bestMatch.uid,
-          name: bestMatch.name,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }, ...prev]);
-        setWelcome({ name: bestMatch.name, uid: bestMatch.uid });
-        setTimeout(() => setWelcome(null), WELCOME_DURATION);
-
-      } else {
-        // Face detected but no match — show "not recognized"
-        for (const uid of Object.keys(consecutiveHits)) consecutiveHits[uid] = 0;
-        setScanState('unknown');
-        clearTimeout(unknownTimer);
-        unknownTimer = setTimeout(() => setScanState('idle'), 2000);
       }
     }, SCAN_INTERVAL);
   };
